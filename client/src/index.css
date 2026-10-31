@@ -116,6 +116,120 @@
       gap: clamp(28px, 5vw, 60px);
     }
     .project-summary { margin: 14px 0 0; max-width: 420px; }
+
+    .about-visual {
+      padding: 118px 0 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .about-visual-head {
+      text-align: center;
+      max-width: 760px;
+    }
+    .about-visual-title {
+      font-size: clamp(34px, 5.4vw, 64px);
+      letter-spacing: -.06em;
+    }
+    .about-visual-lede {
+      margin: 22px auto 0;
+      max-width: 520px;
+    }
+    .about-stage {
+      position: relative;
+      margin-top: 8px;
+      min-height: clamp(420px, 58vw, 640px);
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      align-items: center;
+      padding: 0 var(--page-gutter) 20px;
+      perspective: 1400px;
+    }
+    .about-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      z-index: 2;
+    }
+    .about-stat .stat-number {
+      font-size: 22px;
+    }
+    .about-scene {
+      position: relative;
+      transform-style: preserve-3d;
+      will-change: transform;
+      justify-self: center;
+      width: min(1080px, 100%);
+    }
+    .about-float {
+      position: relative;
+      z-index: 2;
+      will-change: transform;
+    }
+    .about-3d-house {
+      width: 100%;
+      height: auto;
+      display: block;
+      mix-blend-mode: multiply;
+      pointer-events: none;
+      user-select: none;
+    }
+    .about-glow {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 58%;
+      height: 42%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(ellipse at center, rgba(255,255,255,.9), rgba(248,247,244,0) 70%);
+      filter: blur(8px);
+      z-index: 0;
+      pointer-events: none;
+    }
+    .about-ring {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      width: min(420px, 46%);
+      aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(217,215,208,.7);
+      border-radius: 50%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .about-ring::after {
+      content: '';
+      position: absolute;
+      inset: 18%;
+      border: 1px dashed rgba(217,215,208,.9);
+      border-radius: 50%;
+    }
+    .about-ground-shadow {
+      position: absolute;
+      left: 50%;
+      bottom: 7%;
+      width: 52%;
+      height: 36px;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse at center, rgba(23,23,21,.22), rgba(23,23,21,0) 70%);
+      filter: blur(6px);
+      z-index: 1;
+      pointer-events: none;
+    }
+    .about-orb {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 0 1px rgba(23,23,21,.08), 0 10px 24px rgba(23,23,21,.08);
+      z-index: 3;
+      pointer-events: none;
+    }
+    .about-orb-a { top: 22%; left: 14%; width: 8px; height: 8px; }
+    .about-orb-b { top: 18%; right: 18%; width: 12px; height: 12px; background: var(--panel); }
+    .about-orb-c { bottom: 24%; right: 12%; width: 7px; height: 7px; }
+    .about-story { padding-top: clamp(40px, 6vw, 80px); }
     .menu-toggle {
       display: none; border: 0; background: transparent; padding: 10px 0 10px 10px;
       font-size: 9px; letter-spacing: .15em; text-transform: uppercase; cursor: pointer;
@@ -343,6 +457,21 @@
       .section { padding-top: 88px; padding-bottom: 88px; }
       .intro-grid, .approach-grid, .contact-grid, .page-cards, .notes-grid { grid-template-columns: 1fr; gap: 36px; }
       .page-hero { padding-top: 120px; padding-bottom: 40px; }
+      .about-visual { padding-top: 100px; }
+      .about-stage {
+        grid-template-columns: 1fr;
+        min-height: 0;
+        padding-bottom: 0;
+      }
+      .about-stats {
+        flex-direction: row;
+        justify-content: center;
+        gap: 28px;
+        order: 2;
+        margin-top: 8px;
+      }
+      .about-scene { order: 1; }
+      .about-ring { display: none; }
       .intro-copy { max-width: 520px; }
       .intro-image { aspect-ratio: 1.05 / 1; }
       .section-topline { align-items: start; flex-direction: column; gap: 24px; margin-bottom: 26px; }
