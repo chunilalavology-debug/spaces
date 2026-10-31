@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useRouter } from '../lib/router.jsx'
 
 const NAV = [
+  { to: '/', label: 'Home' },
   { to: '/about', label: 'About' },
   { to: '/projects', label: 'Projects' },
   { to: '/opportunities', label: 'Opportunities' },
@@ -9,9 +10,9 @@ const NAV = [
 ]
 
 const MOBILE_NAV = [
-  ...NAV.slice(0, 3),
+  ...NAV.slice(0, 4),
   { to: '/approach', label: 'Our approach' },
-  NAV[3]
+  NAV[4]
 ]
 
 export default function Layout({ children }) {
