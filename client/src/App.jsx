@@ -1,6 +1,7 @@
 
 import Layout from './components/Layout.jsx'
 import { Router, useRouter } from './lib/router.jsx'
+
 import About from './pages/About.jsx'
 import Admin from './pages/Admin.jsx'
 import Blog from './pages/Blog.jsx'
@@ -17,7 +18,7 @@ const ROUTES = {
   '/projects': Projects,
   '/opportunities': Opportunities,
   '/approach': Approach,
-  '/contact': Contact
+  '/contact': Contact,
 }
 
 function AppRoutes() {
@@ -27,9 +28,15 @@ function AppRoutes() {
     return <Admin />
   }
 
-  const Page = path.startsWith('/blog/')
-    ? Blog
-    : (ROUTES[path] || NotFound)
+  if (path.startsWith('/blog/')) {
+    return (
+      <Layout>
+        <Blog />
+      </Layout>
+    )
+  }
+
+  const Page = ROUTES[path] || NotFound
 
   return (
     <Layout>
