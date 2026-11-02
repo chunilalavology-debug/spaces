@@ -19,14 +19,36 @@ const MOBILE_NAV = [
 
 export default function Layout({ children }) {
   const { path } = useRouter()
+
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [progress, setProgress] = useState(0)
+
   const year = new Date().getFullYear()
+
+  // Normalize current route
+  const currentPath = (path || '/').split('?')[0].split('#')[0] || '/'
+
+  // Active navigation logic
+  const isActive = (item) => {
+    // Home is active ONLY on homepage
+    if (item.label === 'Home') {
+      return currentPath === '/'
+    }
+
+    // Journal is active ONLY on blog pages
+    if (item.label === 'Journal') {
+      return currentPath === '/blog' || currentPath.startsWith('/blog/')
+    }
+
+    // Other navigation items
+    return currentPath === item.to
+  }
 
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 20)
+
       const maxScroll =
         document.documentElement.scrollHeight - window.innerHeight
 
@@ -72,7 +94,11 @@ export default function Layout({ children }) {
       />
 
       <header className={`site-header ${scrolled ? 'is-scrolled' : ''}`}>
-        <Link className="brand" to="/" aria-label="46Spaces home">
+        <Link
+          className="brand"
+          to="/"
+          aria-label="46Spaces home"
+        >
           <img
             className="brand-logo"
             src="/assets/logo.png"
@@ -80,14 +106,25 @@ export default function Layout({ children }) {
           />
         </Link>
 
+        {/* Desktop Navigation */}
         <nav className="header-links" aria-label="Main navigation">
-          {NAV.map((item) => (
-            <Link className="nav-link" to={item.to} key={item.to}>
-              {item.label}
-            </Link>
-          ))}
+          {NAV.map((item) => {
+            const active = isActive(item)
+
+            return (
+              <Link
+                className={`nav-link ${active ? 'is-active' : ''}`}
+                to={item.to}
+                key={item.label}
+                aria-current={active ? 'page' : undefined}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
         </nav>
 
+        {/* Mobile Menu Toggle */}
         <button
           className="menu-toggle"
           aria-expanded={menuOpen}
@@ -100,26 +137,34 @@ export default function Layout({ children }) {
         </button>
       </header>
 
+      {/* Mobile Navigation */}
       <nav
         className={`mobile-menu ${menuOpen ? 'is-open' : ''}`}
         id="mobileMenu"
         aria-label="Mobile navigation"
       >
-        {MOBILE_NAV.map((item) => (
-          <Link
-            to={item.to}
-            key={item.to}
-            onClick={() => setMenuOpen(false)}
-          >
-            {item.label}
-          </Link>
-        ))}
+        {MOBILE_NAV.map((item) => {
+          const active = isActive(item)
+
+          return (
+            <Link
+              to={item.to}
+              key={item.label}
+              className={active ? 'is-active' : ''}
+              aria-current={active ? 'page' : undefined}
+              onClick={() => setMenuOpen(false)}
+            >
+              {item.label}
+            </Link>
+          )
+        })}
 
         <p className="eyebrow">Land · Ideas · Possibility</p>
       </nav>
 
       {children}
 
+      {/* Footer */}
       <footer className="site-footer">
         <div className="footer-top">
           <div>
@@ -137,11 +182,20 @@ export default function Layout({ children }) {
           </div>
 
           <nav className="footer-nav" aria-label="Footer navigation">
-            {NAV.map((item) => (
-              <Link className="nav-link" to={item.to} key={item.to}>
-                {item.label}
-              </Link>
-            ))}
+            {NAV.map((item) => {
+              const active = isActive(item)
+
+              return (
+                <Link
+                  className={`nav-link ${active ? 'is-active' : ''}`}
+                  to={item.to}
+                  key={item.label}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
           </nav>
         </div>
 

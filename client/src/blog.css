@@ -1,0 +1,334 @@
+
+/* ========================================
+   SINGLE BLOG PAGE
+======================================== */
+
+.single-blog {
+    width: 100%;
+    min-height: 80vh;
+    padding: 150px 24px 100px;
+    background: #f7f6f2;
+    color: #252720;
+  }
+  
+  .single-blog-inner {
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  
+  /* Back to Journal */
+  
+  .blog-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 60px;
+    color: #66695e;
+    font-size: 13px;
+    text-decoration: none;
+    transition: color 0.25s ease;
+  }
+  
+  .blog-back:hover {
+    color: #252720;
+  }
+  
+  .blog-back span {
+    font-size: 18px;
+  }
+  
+  /* Blog Header */
+  
+  .single-blog-header {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 40px;
+    text-align: left;
+  }
+  
+  .single-blog-category {
+    display: block;
+    margin-bottom: 22px;
+    color: #81866f;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: left;
+  }
+  
+  .single-blog-header h1 {
+    width: 100%;
+    max-width: 950px;
+    margin: 0;
+    color: #252720;
+    font-family: Georgia, serif;
+    font-size: clamp(42px, 5.5vw, 76px);
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -2.5px;
+    text-align: left;
+  }
+  
+  /* Description */
+  
+  .single-blog-excerpt {
+    width: 100%;
+    max-width: 850px;
+    margin: 24px 0 0;
+    color: #77796e;
+    font-size: 18px;
+    line-height: 1.8;
+    text-align: left;
+  }
+  
+  /* Author and Date */
+  
+  .single-blog-author {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 26px;
+    color: #77796e;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-align: left;
+  }
+  
+  .blog-meta-dot {
+    color: #a5a596;
+  }
+  
+  /* Cover Image */
+  
+  .single-blog-image-wrap {
+    width: 100%;
+    max-width: 100%;
+    height: clamp(300px, 48vw, 560px);
+    margin: 0 0 60px;
+    overflow: hidden;
+    background: #e6e5dd;
+  }
+  
+  .single-blog-cover {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+  
+  /* Article Content */
+  
+  .single-blog-content {
+    width: 100%;
+    max-width: 850px;
+    margin: 0;
+    color: #55574e;
+    font-size: 16px;
+    line-height: 2;
+    text-align: left;
+  }
+  
+  .single-blog-content p {
+    margin: 0 0 25px;
+    white-space: pre-line;
+    text-align: left;
+  }
+  
+  .single-blog-content p:first-child {
+    color: #37392f;
+    font-size: 19px;
+    line-height: 1.9;
+  }
+  
+  /* Blog Footer */
+  
+  .single-blog-end {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 25px;
+    margin-top: 85px;
+    padding-top: 30px;
+    border-top: 1px solid #deded4;
+  }
+  
+  .blog-end-brand {
+    color: #303329;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  
+  .single-blog-end p {
+    margin: 8px 0 0;
+    color: #898a7e;
+    font-size: 12px;
+  }
+  
+  .blog-explore-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: #303329;
+    font-size: 13px;
+    text-decoration: none;
+    transition: gap 0.25s ease;
+  }
+  
+  .blog-explore-link:hover {
+    gap: 18px;
+  }
+  
+  .blog-explore-link span {
+    font-size: 18px;
+  }
+  
+  /* ========================================
+     LOADING AND ERROR STATES
+  ======================================== */
+  
+  .blog-loading,
+  .blog-not-found {
+    min-height: 75vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 120px 24px;
+    background: #f7f6f2;
+    color: #252720;
+    text-align: center;
+  }
+  
+  .blog-loading h2,
+  .blog-not-found h1 {
+    margin: 15px 0;
+    font-family: Georgia, serif;
+    font-size: clamp(32px, 5vw, 54px);
+    font-weight: 400;
+  }
+  
+  .blog-not-found p:not(.eyebrow) {
+    color: #77796e;
+    line-height: 1.7;
+  }
+  
+  .blog-not-found .eyebrow,
+  .blog-loading .eyebrow {
+    color: #81866f;
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+  
+  .blog-loading-line {
+    width: 45px;
+    height: 2px;
+    margin-bottom: 30px;
+    background: #81866f;
+    animation: blog-loading 1s ease-in-out infinite alternate;
+  }
+  
+  @keyframes blog-loading {
+    from {
+      opacity: 0.3;
+      transform: scaleX(0.5);
+    }
+  
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+  
+  /* ========================================
+     RESPONSIVE TABLET
+  ======================================== */
+  
+  @media (max-width: 768px) {
+    .single-blog {
+      padding: 115px 20px 70px;
+    }
+  
+    .single-blog-inner {
+      max-width: 100%;
+    }
+  
+    .blog-back {
+      margin-bottom: 45px;
+    }
+  
+    .single-blog-header {
+      margin-bottom: 35px;
+    }
+  
+    .single-blog-header h1 {
+      font-size: clamp(38px, 8vw, 55px);
+      letter-spacing: -1.5px;
+    }
+  
+    .single-blog-excerpt {
+      font-size: 16px;
+      line-height: 1.7;
+    }
+  
+    .single-blog-image-wrap {
+      height: 350px;
+      margin-bottom: 40px;
+    }
+  
+    .single-blog-content {
+      font-size: 15px;
+      line-height: 1.85;
+    }
+  
+    .single-blog-content p:first-child {
+      font-size: 17px;
+    }
+  
+    .single-blog-end {
+      align-items: flex-start;
+      flex-direction: column;
+      margin-top: 55px;
+    }
+  }
+  
+  /* ========================================
+     RESPONSIVE MOBILE
+  ======================================== */
+  
+  @media (max-width: 480px) {
+    .single-blog {
+      padding: 100px 18px 55px;
+    }
+  
+    .single-blog-header h1 {
+      font-size: 38px;
+      letter-spacing: -1px;
+    }
+  
+    .single-blog-excerpt {
+      font-size: 15px;
+    }
+  
+    .single-blog-image-wrap {
+      height: 230px;
+    }
+  
+    .single-blog-author {
+      font-size: 11px;
+    }
+  
+    .single-blog-content {
+      font-size: 15px;
+    }
+  
+    .single-blog-content p:first-child {
+      font-size: 16px;
+    }
+  }
+  

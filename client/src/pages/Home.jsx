@@ -5,41 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import EnquiryForm from '../components/EnquiryForm.jsx'
 import { ArrowIcon, DownArrowIcon } from '../components/Icons.jsx'
 import { Link } from '../lib/router.jsx'
-
-const PROJECTS = [
-  {
-    status: 'launching',
-    image: '/assets/project-1.jpg',
-    alt: 'Open green landscape and gently rolling land',
-    title: 'A New Perspective',
-    location: 'North India · Location details on enquiry',
-    label: 'Launching soon'
-  },
-  {
-    status: 'ongoing',
-    image: '/assets/project-2.jpg',
-    alt: 'Architectural interior with natural materials and soft daylight',
-    title: 'The Quiet Collection',
-    location: 'Project location · Details available soon',
-    label: 'Ongoing'
-  },
-  {
-    status: 'completed',
-    image: '/assets/project-3.jpg',
-    alt: 'Modern residence with clean lines and a landscaped setting',
-    title: 'Grounded Living',
-    location: 'Project location · Completed',
-    label: 'Completed'
-  },
-  {
-    status: 'launching',
-    image: '/assets/project-4.jpg',
-    alt: 'Minimal modern architecture framed against the sky',
-    title: 'A Place to Begin',
-    location: 'Project location · Enquire for details',
-    label: 'Launching soon'
-  }
-]
+import { PROJECTS } from './projectData.js'
 
 const FILTERS = [
   { id: 'all', label: 'All projects' },
@@ -62,6 +28,7 @@ export default function Home() {
   const [filter, setFilter] = useState('all')
   const [activeSection, setActiveSection] = useState('home')
   const [blogs, setBlogs] = useState([])
+
   const [siteSettings, setSiteSettings] = useState({
     blogSectionTitle: 'Notes & perspectives',
     blogSectionDescription: 'Ideas, insights and stories from 46Spaces.',
@@ -72,7 +39,9 @@ export default function Home() {
   useEffect(() => {
     fetch('/api/blogs')
       .then((response) => response.ok ? response.json() : [])
-      .then(setBlogs)
+      .then((data) => {
+        setBlogs(Array.isArray(data) ? data : [])
+      })
       .catch(() => {})
 
     fetch('/api/settings')
@@ -86,7 +55,9 @@ export default function Home() {
           }
 
           if (data.seoDescription) {
-            let meta = document.querySelector('meta[name="description"]')
+            let meta = document.querySelector(
+              'meta[name="description"]'
+            )
 
             if (!meta) {
               meta = document.createElement('meta')
@@ -351,10 +322,10 @@ export default function Home() {
 
             <div className="projects-grid">
               {visibleProjects.map((project) => (
-                <a
+                <Link
                   className="project-card reveal"
-                  href="#contact"
-                  key={project.title}
+                  to={`/projects/${project.slug}`}
+                  key={project.slug}
                 >
                   <div className="media project-image">
                     <img
@@ -366,7 +337,10 @@ export default function Home() {
 
                   <div className="project-meta">
                     <div>
-                      <h3 className="project-title">{project.title}</h3>
+                      <h3 className="project-title">
+                        {project.title}
+                      </h3>
+
                       <p className="project-location">
                         {project.location}
                       </p>
@@ -380,7 +354,7 @@ export default function Home() {
                       <ArrowIcon />
                     </span>
                   </div>
-                </a>
+                </Link>
               ))}
             </div>
 
@@ -452,6 +426,7 @@ export default function Home() {
 
                           <div className="blog-card-meta">
                             <span>{blog.category || 'Insights'}</span>
+
                             <span>
                               {new Date(
                                 blog.publishedAt || blog.createdAt
@@ -529,6 +504,7 @@ export default function Home() {
                           autoComplete="name"
                           required
                         />
+
                         <input
                           className="field"
                           name="email"
@@ -606,6 +582,7 @@ export default function Home() {
                           autoComplete="name"
                           required
                         />
+
                         <input
                           className="field"
                           name="email"
@@ -695,10 +672,12 @@ export default function Home() {
             <div className="approach-list">
               <article className="approach-item reveal">
                 <span className="approach-number">01</span>
+
                 <div>
                   <h3 className="approach-title">
                     Understand the place
                   </h3>
+
                   <p className="body-copy">
                     We start with context: the land, the people involved, and
                     what the opportunity could become.
@@ -708,10 +687,12 @@ export default function Home() {
 
               <article className="approach-item reveal">
                 <span className="approach-number">02</span>
+
                 <div>
                   <h3 className="approach-title">
                     Make the right connections
                   </h3>
+
                   <p className="body-copy">
                     We bring together aligned owners, buyers, consultants
                     and partners to build shared momentum.
@@ -721,10 +702,12 @@ export default function Home() {
 
               <article className="approach-item reveal">
                 <span className="approach-number">03</span>
+
                 <div>
                   <h3 className="approach-title">
                     Move forward with clarity
                   </h3>
+
                   <p className="body-copy">
                     We keep communication focused and the next steps clear,
                     from first conversation to follow-through.
@@ -759,6 +742,7 @@ export default function Home() {
               <div className="contact-info">
                 <div>
                   <span className="contact-label">Email</span>
+
                   <a
                     className="contact-value"
                     href={`mailto:${
@@ -771,6 +755,7 @@ export default function Home() {
 
                 <div>
                   <span className="contact-label">Phone</span>
+
                   <a
                     className="contact-value"
                     href={`tel:${
@@ -783,6 +768,7 @@ export default function Home() {
 
                 <div>
                   <span className="contact-label">Office</span>
+
                   <span className="text-muted">
                     {siteSettings.address || 'Address to be added'}
                   </span>

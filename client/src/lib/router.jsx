@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 
 const RouterContext = createContext({
   path: '/',
-  navigate: () => {}
+  navigate: () => {},
 })
 
 function currentPath() {
@@ -25,16 +25,16 @@ export function Router({ children }) {
     const nextPath = (to.split('#')[0] || '/').replace(/\/$/, '') || '/'
 
     if (
-      window.location.pathname + window.location.search + window.location.hash !== to
+      window.location.pathname +
+        window.location.search +
+        window.location.hash !== to
     ) {
       window.history.pushState({}, '', to)
     }
 
     setPath(nextPath)
 
-    const hash = to.includes('#')
-      ? to.slice(to.indexOf('#') + 1)
-      : ''
+    const hash = to.includes('#') ? to.slice(to.indexOf('#') + 1) : ''
 
     if (hash) {
       window.requestAnimationFrame(() => {
@@ -54,17 +54,8 @@ export function Router({ children }) {
   )
 }
 
-export function Link({
-  to,
-  className = '',
-  children,
-  onClick,
-  ...props
-}) {
-  const { path, navigate } = useRouter()
-
-  const hrefPath = (to.split('#')[0] || '/').replace(/\/$/, '') || '/'
-  const active = path === hrefPath
+export function Link({ to, className = '', children, onClick, ...props }) {
+  const { navigate } = useRouter()
 
   function handleClick(event) {
     if (
@@ -85,7 +76,7 @@ export function Link({
   return (
     <a
       href={to}
-      className={`${className}${active ? ' is-active' : ''}`.trim()}
+      className={className}
       onClick={handleClick}
       {...props}
     >

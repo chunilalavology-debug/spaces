@@ -11,6 +11,7 @@ import Home from './pages/Home.jsx'
 import NotFound from './pages/NotFound.jsx'
 import Opportunities from './pages/Opportunities.jsx'
 import Projects from './pages/Projects.jsx'
+import ProjectDetail from './pages/ProjectDetail.jsx'
 
 const ROUTES = {
   '/': Home,
@@ -24,10 +25,12 @@ const ROUTES = {
 function AppRoutes() {
   const { path } = useRouter()
 
+  // Admin routes
   if (path === '/admin' || path.startsWith('/admin/')) {
     return <Admin />
   }
 
+  // Individual blog detail page
   if (path.startsWith('/blog/')) {
     return (
       <Layout>
@@ -36,6 +39,16 @@ function AppRoutes() {
     )
   }
 
+  // Individual project detail page
+  if (path.startsWith('/projects/')) {
+    return (
+      <Layout>
+        <ProjectDetail />
+      </Layout>
+    )
+  }
+
+  // Normal pages
   const Page = ROUTES[path] || NotFound
 
   return (
