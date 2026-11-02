@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { Link, useRouter } from '../lib/router.jsx'
 
@@ -5,24 +6,15 @@ const NAV = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About' },
   { to: '/projects', label: 'Projects' },
-<<<<<<< HEAD
   { to: '/#blogs', label: 'Journal' },
-=======
->>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
   { to: '/opportunities', label: 'Opportunities' },
   { to: '/contact', label: 'Contact' }
 ]
 
 const MOBILE_NAV = [
-<<<<<<< HEAD
   ...NAV.slice(0, 5),
   { to: '/approach', label: 'Our approach' },
   NAV[5]
-=======
-  ...NAV.slice(0, 4),
-  { to: '/approach', label: 'Our approach' },
-  NAV[4]
->>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
 ]
 
 export default function Layout({ children }) {
@@ -35,24 +27,35 @@ export default function Layout({ children }) {
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 20)
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight
-      setProgress(maxScroll > 0 ? (window.scrollY / maxScroll) * 100 : 0)
+      const maxScroll =
+        document.documentElement.scrollHeight - window.innerHeight
+
+      setProgress(
+        maxScroll > 0 ? (window.scrollY / maxScroll) * 100 : 0
+      )
     }
+
     window.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
+
     return () => window.removeEventListener('scroll', onScroll)
   }, [path])
 
   useEffect(() => {
     document.body.classList.toggle('menu-open', menuOpen)
+
     return () => document.body.classList.remove('menu-open')
   }, [menuOpen])
 
   useEffect(() => {
     const onKey = (event) => {
-      if (event.key === 'Escape') setMenuOpen(false)
+      if (event.key === 'Escape') {
+        setMenuOpen(false)
+      }
     }
+
     document.addEventListener('keydown', onKey)
+
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
@@ -62,12 +65,21 @@ export default function Layout({ children }) {
 
   return (
     <>
-      <div className="mobile-progress" aria-hidden="true" style={{ width: `${progress}%` }} />
+      <div
+        className="mobile-progress"
+        aria-hidden="true"
+        style={{ width: `${progress}%` }}
+      />
 
       <header className={`site-header ${scrolled ? 'is-scrolled' : ''}`}>
         <Link className="brand" to="/" aria-label="46Spaces home">
-          <img className="brand-logo" src="/assets/logo.png" alt="46Spaces" />
+          <img
+            className="brand-logo"
+            src="/assets/logo.png"
+            alt="46Spaces"
+          />
         </Link>
+
         <nav className="header-links" aria-label="Main navigation">
           {NAV.map((item) => (
             <Link className="nav-link" to={item.to} key={item.to}>
@@ -75,6 +87,7 @@ export default function Layout({ children }) {
             </Link>
           ))}
         </nav>
+
         <button
           className="menu-toggle"
           aria-expanded={menuOpen}
@@ -87,12 +100,21 @@ export default function Layout({ children }) {
         </button>
       </header>
 
-      <nav className={`mobile-menu ${menuOpen ? 'is-open' : ''}`} id="mobileMenu" aria-label="Mobile navigation">
+      <nav
+        className={`mobile-menu ${menuOpen ? 'is-open' : ''}`}
+        id="mobileMenu"
+        aria-label="Mobile navigation"
+      >
         {MOBILE_NAV.map((item) => (
-          <Link to={item.to} key={item.to} onClick={() => setMenuOpen(false)}>
+          <Link
+            to={item.to}
+            key={item.to}
+            onClick={() => setMenuOpen(false)}
+          >
             {item.label}
           </Link>
         ))}
+
         <p className="eyebrow">Land · Ideas · Possibility</p>
       </nav>
 
@@ -102,10 +124,18 @@ export default function Layout({ children }) {
         <div className="footer-top">
           <div>
             <Link className="brand footer-logo" to="/">
-              <img className="brand-logo" src="/assets/logo.png" alt="46Spaces" />
+              <img
+                className="brand-logo"
+                src="/assets/logo.png"
+                alt="46Spaces"
+              />
             </Link>
-            <p className="eyebrow footer-tagline">Land. Ideas. Possibility.</p>
+
+            <p className="eyebrow footer-tagline">
+              Land. Ideas. Possibility.
+            </p>
           </div>
+
           <nav className="footer-nav" aria-label="Footer navigation">
             {NAV.map((item) => (
               <Link className="nav-link" to={item.to} key={item.to}>
@@ -114,6 +144,7 @@ export default function Layout({ children }) {
             ))}
           </nav>
         </div>
+
         <div className="footer-bottom">
           <span>© {year} 46Spaces. All rights reserved.</span>
           <span>Thoughtfully grounded. Forward looking.</span>
