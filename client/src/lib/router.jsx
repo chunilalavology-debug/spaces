@@ -25,8 +25,11 @@ export function Router({ children }) {
     }
     setPath(nextPath)
     window.scrollTo(0, 0)
+<<<<<<< HEAD
     const hash = to.includes('#') ? to.slice(to.indexOf('#') + 1) : ''
     if (hash) window.requestAnimationFrame(() => document.getElementById(decodeURIComponent(hash))?.scrollIntoView({ behavior: 'smooth' }))
+=======
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
   }
 
   return (

@@ -7,7 +7,10 @@ dist
 server/data/enquiries.json
 extracted
 _extract.js
+<<<<<<< HEAD
 
 server/data/blogs.json
 server/data/settings.json
 server/data/admin.json
+=======
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134

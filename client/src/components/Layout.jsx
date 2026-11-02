@@ -5,15 +5,24 @@ const NAV = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About' },
   { to: '/projects', label: 'Projects' },
+<<<<<<< HEAD
   { to: '/#blogs', label: 'Journal' },
+=======
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
   { to: '/opportunities', label: 'Opportunities' },
   { to: '/contact', label: 'Contact' }
 ]
 
 const MOBILE_NAV = [
+<<<<<<< HEAD
   ...NAV.slice(0, 5),
   { to: '/approach', label: 'Our approach' },
   NAV[5]
+=======
+  ...NAV.slice(0, 4),
+  { to: '/approach', label: 'Our approach' },
+  NAV[4]
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
 ]
 
 export default function Layout({ children }) {

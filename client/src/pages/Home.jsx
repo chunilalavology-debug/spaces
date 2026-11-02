@@ -3,7 +3,10 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import EnquiryForm from '../components/EnquiryForm.jsx'
 import { ArrowIcon, DownArrowIcon } from '../components/Icons.jsx'
+<<<<<<< HEAD
 import { Link } from '../lib/router.jsx'
+=======
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
 
 const PROJECTS = [
   {
@@ -47,11 +50,16 @@ const FILTERS = [
   { id: 'completed', label: 'Completed' }
 ]
 
+<<<<<<< HEAD
 const SECTIONS = ['home', 'about', 'projects', 'blogs', 'opportunities', 'approach', 'contact']
+=======
+const SECTIONS = ['home', 'about', 'projects', 'opportunities', 'approach', 'contact']
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
 
 export default function Home() {
   const [filter, setFilter] = useState('all')
   const [activeSection, setActiveSection] = useState('home')
+<<<<<<< HEAD
   const [blogs, setBlogs] = useState([])
   const [siteSettings, setSiteSettings] = useState({ blogSectionTitle: 'Notes & perspectives', blogSectionDescription: 'Ideas, insights and stories from 46Spaces.', postsPerPage: 6, showBlogSection: true })
 
@@ -59,6 +67,8 @@ export default function Home() {
     fetch('/api/blogs').then(response => response.ok ? response.json() : []).then(setBlogs).catch(() => {})
     fetch('/api/settings').then(response => response.ok ? response.json() : null).then(data => { if (data) { setSiteSettings(current => ({ ...current, ...data })); if (data.seoTitle) document.title = data.seoTitle; if (data.seoDescription) { let meta = document.querySelector('meta[name="description"]'); if (!meta) { meta = document.createElement('meta'); meta.name = 'description'; document.head.appendChild(meta) } meta.content = data.seoDescription } } }).catch(() => {})
   }, [])
+=======
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
 
   useEffect(() => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -159,7 +169,11 @@ export default function Home() {
                 <DownArrowIcon />
               </span>
             </a>
+<<<<<<< HEAD
             <span>01 / 07</span>
+=======
+            <span>01 / 06</span>
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
           </div>
         </section>
 
@@ -235,6 +249,7 @@ export default function Home() {
           </div>
         </section>
 
+<<<<<<< HEAD
         {siteSettings.showBlogSection !== false && (blogs.length > 0 || import.meta.env.DEV) && (
           <section className="section blogs-section" id="blogs" data-section="blogs">
             <div className="container">
@@ -265,6 +280,12 @@ export default function Home() {
           <div className="container">
             <div className="split-heading reveal">
               <p className="eyebrow">04 — Open the conversation</p>
+=======
+        <section className="section split-section" id="opportunities" data-section="opportunities">
+          <div className="container">
+            <div className="split-heading reveal">
+              <p className="eyebrow">03 — Open the conversation</p>
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
               <h2 className="section-heading">Bring land, or bring buyers.</h2>
               <p className="body-copy">The best opportunities begin with the right conversation. Tell us where you fit, and we’ll take it from there.</p>
             </div>
@@ -343,7 +364,11 @@ export default function Home() {
         <section className="section" id="approach" data-section="approach">
           <div className="container approach-grid">
             <div className="approach-intro reveal">
+<<<<<<< HEAD
               <p className="eyebrow">05 — The way we work</p>
+=======
+              <p className="eyebrow">04 — The way we work</p>
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
               <h2 className="section-heading">Build spaces with us.</h2>
               <p className="body-copy" style={{ marginTop: 22 }}>
                 We bring people, place and possibility together. A considered process helps good opportunities become clear, practical next steps.
@@ -382,7 +407,11 @@ export default function Home() {
         <section className="section contact-section" id="contact" data-section="contact">
           <div className="container contact-grid">
             <div className="reveal">
+<<<<<<< HEAD
               <p className="eyebrow">06 — Get in touch</p>
+=======
+              <p className="eyebrow">05 — Get in touch</p>
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
               <h2 className="section-heading">Every good thing starts somewhere.</h2>
               <p className="body-copy" style={{ maxWidth: 400, marginTop: 22 }}>
                 Have a property, a question or an idea worth exploring? Tell us a little about it. We’d be glad to hear from you.
@@ -390,6 +419,7 @@ export default function Home() {
               <div className="contact-info">
                 <div>
                   <span className="contact-label">Email</span>
+<<<<<<< HEAD
                   <a className="contact-value" href={`mailto:${siteSettings.contactEmail || 'hello@46spaces.com'}`}>{siteSettings.contactEmail || 'hello@46spaces.com'}</a>
                 </div>
                 <div>
@@ -399,6 +429,17 @@ export default function Home() {
                 <div>
                   <span className="contact-label">Office</span>
                   <span className="text-muted">{siteSettings.address || 'Address to be added'}</span>
+=======
+                  <a className="contact-value" href="mailto:hello@46spaces.com">hello@46spaces.com</a>
+                </div>
+                <div>
+                  <span className="contact-label">Phone</span>
+                  <a className="contact-value" href="tel:+910000000000">+91 00000 00000</a>
+                </div>
+                <div>
+                  <span className="contact-label">Office</span>
+                  <span className="text-muted">Address to be added</span>
+>>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
                 </div>
               </div>
             </div>
