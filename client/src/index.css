@@ -571,3 +571,11 @@
     .form-status.is-error { color: #8a3b2b; }
     .form-status.is-success { color: #3f5d3a; }
   
+/* CMS-managed navigation dropdowns */
+.nav-item-wrap { position: relative; display: inline-flex; align-items: center; }
+.nav-dropdown { display: none; position: absolute; top: 100%; left: -16px; min-width: 190px; padding: 14px 16px; background: var(--paper); border: 1px solid var(--rule); box-shadow: 0 12px 30px rgba(0,0,0,.08); z-index: 150; }
+.nav-item-wrap:hover > .nav-dropdown, .nav-item-wrap:focus-within > .nav-dropdown { display: flex; flex-direction: column; gap: 14px; }
+.nav-dropdown .nav-item-wrap { display: flex; }
+.nav-dropdown .nav-dropdown { top: 0; left: 100%; }
+.mobile-menu .nav-item-wrap { display: block; }
+.mobile-menu .nav-dropdown { position: static; display: flex; flex-direction: column; border: 0; box-shadow: none; padding: 8px 0 8px 18px; background: transparent; }

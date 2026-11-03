@@ -1,5 +1,5 @@
 
-import { UserRound } from 'lucide-react'
+import { UserRound, Eye, EyeOff } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import '../admin.css'
 
@@ -70,8 +70,9 @@ export default function Admin() {
   const [authenticated, setAuthenticated] = useState(false)
   const [checking, setChecking] = useState(true)
 
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+ const [username, setUsername] = useState('')
+const [password, setPassword] = useState('')
+const [showPassword, setShowPassword] = useState(false)
 
   const [error, setError] = useState('')
   const [section, setSection] = useState('overview')
@@ -88,13 +89,20 @@ export default function Admin() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
+  const [projects, setProjects] = useState([])
+  const [projectEditor, setProjectEditor] = useState(null)
+const [menus, setMenus] = useState({ header: [], footer: [] })
+const [forms, setForms] = useState([])
+const [selectedFormId, setSelectedFormId] = useState('')
+  const [media, setMedia] = useState([])
+  const [profile, setProfile] = useState({ name: '', email: '', avatar: '' })
+  const [profileMessage, setProfileMessage] = useState('')
 
   // Load dashboard data safely
   async function loadData() {
-    const [blogData, settingsData, enquiryData] = await Promise.all([
-      api('/admin/blogs'),
-      api('/admin/settings'),
-      api('/admin/enquiries')
+    const [blogData, settingsData, enquiryData, projectData, menuData, formData, profileData, mediaData] = await Promise.all([
+      api('/admin/blogs'), api('/admin/settings'), api('/admin/enquiries'),
+      api('/admin/projects'), api('/menus'), api('/forms'), api('/admin/session'), api('/admin/media')
     ])
 
     const safeBlogs = Array.isArray(blogData)
@@ -119,6 +127,22 @@ export default function Admin() {
     setBlogs(safeBlogs)
     setEnquiries(safeEnquiries)
     setSettings({ ...defaults, ...safeSettings })
+    setProjects(Array.isArray(projectData) ? projectData : [])
+setMenus({
+  header: Array.isArray(menuData?.header) ? menuData.header : [],
+  footer: Array.isArray(menuData?.footer) ? menuData.footer : []
+})
+
+const loadedForms = Array.isArray(formData)
+  ? formData
+  : Array.isArray(formData?.value)
+    ? formData.value
+    : []
+
+setForms(loadedForms)
+setSelectedFormId(loadedForms[0]?.id || '')
+    setProfile(profileData?.profile || { name: profileData?.username || '', email: '', avatar: '' })
+    setMedia(Array.isArray(mediaData) ? mediaData : [])
   }
 
   // Check admin session
@@ -278,6 +302,95 @@ export default function Admin() {
     }
   }
 
+
+  async function saveProject(event) {
+    event.preventDefault(); setSaving(true); setError('')
+    try {
+      const saved = await api(projectEditor.id ? `/admin/projects/${projectEditor.id}` : '/admin/projects', {
+        method: projectEditor.id ? 'PUT' : 'POST', body: JSON.stringify(projectEditor)
+      })
+      setProjects(list => projectEditor.id ? list.map(x => x.id === saved.id ? saved : x) : [saved, ...list])
+      setProjectEditor(null); setNotice('Project saved successfully.')
+    } catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+  async function deleteProject(item) {
+    if (!confirm(`Delete "${item.title}"?`)) return
+    try { await api(`/admin/projects/${item.id}`, { method: 'DELETE' }); setProjects(x => x.filter(p => p.id !== item.id)); setNotice('Project deleted.') }
+    catch (e) { setError(e.message) }
+  }
+async function saveMenus(event) {
+  event.preventDefault()
+  setSaving(true)
+  setError('')
+
+  try {
+    const saved = await api('/admin/menus', {
+      method: 'PUT',
+      body: JSON.stringify({
+        header: menus.header,
+        footer: menus.footer
+      })
+    })
+
+    setMenus({
+      header: Array.isArray(saved?.header) ? saved.header : menus.header,
+      footer: Array.isArray(saved?.footer) ? saved.footer : menus.footer
+    })
+
+    setNotice('Navigation menus saved successfully.')
+  } catch (e) {
+    setError(e.message)
+  } finally {
+    setSaving(false)
+  }
+}
+
+async function saveForms(event) {
+  event.preventDefault()
+  setSaving(true)
+  setError('')
+
+  try {
+    const saved = await api('/admin/forms', {
+      method: 'PUT',
+      body: JSON.stringify(forms)
+    })
+
+    const updatedForms = Array.isArray(saved)
+      ? saved
+      : Array.isArray(saved?.value)
+        ? saved.value
+        : forms
+
+    setForms(updatedForms)
+    setNotice('Form definitions saved successfully.')
+  } catch (e) {
+    setError(e.message)
+  } finally {
+    setSaving(false)
+  }
+}
+  async function saveProfile(event) {
+    event.preventDefault(); setSaving(true); setError(''); setProfileMessage('')
+    try { const saved = await api('/admin/profile', { method: 'PUT', body: JSON.stringify(profile) }); setProfile(saved); setUsername(saved.name); setProfileMessage('Profile updated successfully.') }
+    catch (e) { setError(e.message) } finally { setSaving(false) }
+  }
+  async function uploadImage(event, target) {
+    const file = event.target.files?.[0]; if (!file) return
+    if (file.size > 8 * 1024 * 1024) { setError('Please choose an image smaller than 8 MB.'); return }
+    const reader = new FileReader()
+    reader.onload = async () => {
+      try {
+        const uploaded = await api('/admin/uploads', { method: 'POST', body: JSON.stringify({ data: reader.result, filename: file.name.replace(/\.[^.]+$/, '') }) })
+        if (target === 'logoUrl' || target === 'faviconUrl') setSettings(v => ({ ...v, [target]: uploaded.url }))
+        if (target === 'avatar') setProfile(v => ({ ...v, avatar: uploaded.url }))
+        if (target === 'projectCoverImage') setProjectEditor(v => ({ ...v, coverImage: uploaded.url }))
+        setMedia(v => [{ name: uploaded.filename, url: uploaded.url }, ...v]); setNotice('Image uploaded.')
+      } catch (e) { setError(e.message) }
+    }
+    reader.readAsDataURL(file)
+  }
+
   // Safe blog list
   const safeBlogList = Array.isArray(blogs) ? blogs : []
 
@@ -344,16 +457,42 @@ export default function Admin() {
             />
           </label>
 
-          <label>
-            Password
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-            />
-          </label>
+<label>
+  Password
+
+  <div style={{ position: 'relative' }}>
+    <input
+      type={showPassword ? 'text' : 'password'}
+      autoComplete="current-password"
+      value={password}
+      onChange={e => setPassword(e.target.value)}
+      required
+      style={{ paddingRight: '48px', width: '100%' }}
+    />
+
+    <button
+      type="button"
+      onClick={() => setShowPassword(prev => !prev)}
+      aria-label={showPassword ? 'Hide password' : 'Show password'}
+      title={showPassword ? 'Hide password' : 'Show password'}
+      style={{
+        position: 'absolute',
+        right: '12px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        background: 'transparent',
+        border: 'none',
+        padding: '5px',
+        cursor: 'pointer',
+        color: '#555',
+        display: 'flex',
+        alignItems: 'center'
+      }}
+    >
+      {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+    </button>
+  </div>
+</label>
 
           <button className="admin-primary" type="submit">
             Sign in <span>→</span>
@@ -389,7 +528,12 @@ export default function Admin() {
           {[
             ['overview', '▦', 'Overview'],
             ['blogs', '▤', 'Blogs'],
+            ['projects', '▦', 'Projects'],
+            ['menus', '☷', 'Navigation menus'],
+            ['forms', '▧', 'Form builder'],
+            ['media', '▣', 'Media library'],
             ['settings', '⚙', 'Website settings'],
+            ['profile', '◉', 'Admin profile'],
             ['enquiries', '✉', 'Enquiries']
           ].map(([id, icon, label]) => (
             <button
@@ -412,8 +556,9 @@ export default function Admin() {
 
         <div className="admin-sidebar-bottom">
           <div className="admin-user-avatar">
-            <UserRound size={21} strokeWidth={1.7} />
+            {profile.avatar ? <img src={profile.avatar} alt="" /> : <UserRound size={21} strokeWidth={1.7} />}
           </div>
+          <div className="admin-user-meta"><strong>{profile.name || username || 'Admin'}</strong><small>{profile.email || 'Administrator'}</small></div>
 
           <button
             type="button"
@@ -443,6 +588,11 @@ export default function Admin() {
                     overview: 'Overview',
                     blogs: 'Blog management',
                     settings: 'Website settings',
+                    projects: 'Project management',
+                    menus: 'Navigation menus',
+                    forms: 'Form builder',
+                    media: 'Media library',
+                    profile: 'Admin profile',
                     enquiries: 'Enquiries'
                   }[section]}
             </span>
@@ -887,6 +1037,17 @@ export default function Admin() {
               </div>
 
               <div className="admin-panel">
+                <h2>Brand identity</h2>
+                <p className="admin-muted">Upload the logo and browser favicon used across the website.</p>
+                <div className="admin-form-grid">
+                  <label>Website logo <input type="file" accept="image/*" onChange={e => uploadImage(e, 'logoUrl')} />{settings.logoUrl && <img src={settings.logoUrl} alt="Current logo" style={{maxWidth:180,maxHeight:65,objectFit:'contain',marginTop:10}} />}</label>
+                  <label>Favicon <input type="file" accept="image/*" onChange={e => uploadImage(e, 'faviconUrl')} />{settings.faviconUrl && <img src={settings.faviconUrl} alt="Current favicon" style={{width:40,height:40,objectFit:'contain',marginTop:10}} />}</label>
+                </div>
+                <SettingField label="Logo URL" value={settings.logoUrl} onChange={v => setSettings(s => ({...s, logoUrl:v}))} />
+                <SettingField label="Favicon URL" value={settings.faviconUrl} onChange={v => setSettings(s => ({...s, faviconUrl:v}))} />
+              </div>
+
+              <div className="admin-panel">
                 <h2>General information</h2>
                 <p className="admin-muted">
                   Your brand details and website identity.
@@ -1175,6 +1336,70 @@ export default function Admin() {
             </form>
           )}
 
+
+          {section === 'projects' && (
+            <>
+              <div className="admin-page-intro"><div><p className="admin-eyebrow">PORTFOLIO</p><h1>Projects</h1><p className="admin-muted">Create and maintain the projects displayed on the website.</p></div><button className="admin-primary" onClick={() => setProjectEditor({ title:'', slug:'', category:'Residential', location:'', summary:'', description:'', coverImage:'', gallery:[], status:'launching', featured:false })}>＋ Add project</button></div>
+              {projectEditor ? <form className="admin-panel" onSubmit={saveProject}>
+                <div className="admin-form-grid">
+                  {['title','slug','category','location','coverImage'].map(key => <label key={key}>{key}<input value={projectEditor[key] || ''} onChange={e => setProjectEditor(v => ({...v,[key]:e.target.value}))} required={key==='title'} /></label>)}
+                  <label>Upload cover image<input type="file" accept="image/*" onChange={e => uploadImage(e, 'projectCoverImage')} /></label>
+                  <label>Status<select value={projectEditor.status || 'published'} onChange={e => setProjectEditor(v => ({...v,status:e.target.value}))}><option value="launching">Launching soon</option><option value="ongoing">Ongoing</option><option value="completed">Completed</option><option value="draft">Draft</option></select></label>
+                  <label>Featured<select value={String(!!projectEditor.featured)} onChange={e => setProjectEditor(v => ({...v,featured:e.target.value==='true'}))}><option value="false">No</option><option value="true">Yes</option></select></label>
+                </div>
+                <label>Short summary<textarea rows="3" value={projectEditor.summary || ''} onChange={e => setProjectEditor(v => ({...v,summary:e.target.value}))}/></label>
+                <label>Project description<textarea rows="7" value={projectEditor.description || ''} onChange={e => setProjectEditor(v => ({...v,description:e.target.value}))}/></label>
+                <div className="admin-row-actions"><button className="admin-primary" disabled={saving}>Save project</button><button type="button" className="admin-secondary" onClick={() => setProjectEditor(null)}>Cancel</button></div>
+              </form> : <div className="admin-panel"><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>PROJECT</th><th>CATEGORY</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody>{projects.map(item => <tr key={item.id}><td><strong>{item.title}</strong><small>{item.location}</small></td><td>{item.category}</td><td>{item.status}</td><td><div className="admin-row-actions"><button onClick={() => setProjectEditor({...item})}>Edit</button><button onClick={() => deleteProject(item)}>Delete</button></div></td></tr>)}</tbody></table>{!projects.length && <p className="admin-empty">No projects added yet. Add your first project.</p>}</div></div>}
+            </>
+          )}
+
+{section === 'menus' && (
+  <form className="admin-panel" onSubmit={saveMenus}>
+    <p className="admin-eyebrow">APPEARANCE / MENUS</p>
+    <h1>Navigation menus</h1>
+    <p className="admin-muted">
+      Manage your website header, footer and dropdown navigation links.
+    </p>
+
+    <MenuEditor menus={menus} setMenus={setMenus} />
+
+    <button className="admin-primary" disabled={saving}>
+      {saving ? 'Saving...' : 'Save navigation'}
+    </button>
+  </form>
+)}
+
+{section === 'forms' && (
+  <form className="admin-panel" onSubmit={saveForms}>
+    <p className="admin-eyebrow">LEAD CAPTURE</p>
+    <h1>Form builder</h1>
+    <p className="admin-muted">
+      Create and manage the forms displayed on your website.
+      Existing submissions remain available in Enquiries.
+    </p>
+
+    <FormBuilder
+      forms={forms}
+      setForms={setForms}
+      selectedFormId={selectedFormId}
+      setSelectedFormId={setSelectedFormId}
+    />
+
+    <button
+      className="admin-primary"
+      disabled={saving}
+      style={{ marginTop: 24 }}
+    >
+      {saving ? 'Saving...' : 'Save all forms'}
+    </button>
+  </form>
+)}
+
+          {section === 'media' && <div className="admin-panel"><p className="admin-eyebrow">ASSET MANAGER</p><h1>Media library</h1><p className="admin-muted">Uploaded images can be reused in projects, branding, blogs and forms.</p><label>Upload image<input type="file" accept="image/*" onChange={e => uploadImage(e, 'media')} /></label><div className="admin-media-grid">{media.map(item => <div key={item.name}><img src={item.url} alt={item.name}/><small>{item.name}</small><button type="button" onClick={() => navigator.clipboard?.writeText(item.url)}>Copy URL</button></div>)}</div>{!media.length && <p className="admin-empty">No uploaded media yet.</p>}</div>}
+
+          {section === 'profile' && <form className="admin-panel" onSubmit={saveProfile}><p className="admin-eyebrow">ACCOUNT</p><h1>Admin profile</h1><p className="admin-muted">Update the account name and email shown in the admin workspace. Password can be changed in Website Settings.</p><div className="admin-profile-avatar">{profile.avatar ? <img src={profile.avatar} alt="Admin profile"/> : <UserRound/>}</div><label>Profile picture<input type="file" accept="image/*" onChange={e => uploadImage(e, 'avatar')}/></label><div className="admin-form-grid"><label>Admin name<input value={profile.name || ''} onChange={e => setProfile(v => ({...v,name:e.target.value}))} required/></label><label>Admin email<input type="email" value={profile.email || ''} onChange={e => setProfile(v => ({...v,email:e.target.value}))} required/></label></div>{profileMessage && <p className="admin-password-success">{profileMessage}</p>}<button className="admin-primary" disabled={saving}>Save profile</button></form>}
+
           {/* ENQUIRIES */}
           {section === 'enquiries' && (
             <>
@@ -1210,6 +1435,15 @@ export default function Admin() {
 
                         {item.message && (
                           <p>{item.message}</p>
+                        )}
+                        {item.fields && (
+                          <div className="admin-enquiry-fields">
+                            {Object.entries(item.fields)
+                              .filter(([key]) => !['name', 'email', 'phone', 'message', 'consent'].includes(key))
+                              .map(([key, value]) => (
+                                <p key={key}><strong>{key}:</strong> {String(value)}</p>
+                              ))}
+                          </div>
                         )}
                       </article>
                     ))

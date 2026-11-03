@@ -1105,3 +1105,17 @@
     color: #fff;
     overflow: hidden;
   }
+.admin-media-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px; margin-top:26px; }
+.admin-media-grid > div { border:1px solid var(--admin-border); background:#fff; padding:10px; min-width:0; }
+.admin-media-grid img { width:100%; height:120px; object-fit:contain; background:#f4f3f0; }
+.admin-media-grid small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:9px 0; color:var(--admin-muted); }
+.admin-media-grid button { border:0; background:transparent; padding:5px 0; cursor:pointer; color:var(--admin-accent); font-size:11px; }
+.admin-profile-avatar { width:90px; height:90px; border-radius:50%; overflow:hidden; display:grid; place-items:center; background:#eee; margin:18px 0; }
+.admin-profile-avatar img { width:100%; height:100%; object-fit:cover; }
+.cms-form-field { display:block; margin:12px 0; }
+@media (max-width: 760px) { .admin-content { padding:24px 16px 50px; } .admin-sidebar { width:72px; padding:20px 8px; } .admin-sidebar nav button { font-size:0; justify-content:center; } .admin-sidebar nav button span { font-size:17px; } .admin-sidebar nav button small, .admin-side-label, .admin-sidebar .admin-brand { display:none; } .admin-main { margin-left:72px; } .admin-topbar { padding:12px 16px; } }
+
+.admin-user-avatar { overflow:hidden; }
+.admin-user-avatar img { width:100%; height:100%; object-fit:cover; }
+.admin-user-meta { min-width:0; }
+.admin-user-meta strong, .admin-user-meta small { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

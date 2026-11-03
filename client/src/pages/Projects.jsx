@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PROJECTS } from './projectData.js'
 import PageHero from '../components/PageHero.jsx'
 import { Link, useRouter } from '../lib/router.jsx'
@@ -16,10 +16,12 @@ const FILTERS = [
 export default function Projects() {
   const { path } = useRouter()
   const [filter, setFilter] = useState('all')
+  const [cmsProjects, setCmsProjects] = useState(null)
+  useEffect(() => { fetch('/api/projects').then(r => r.ok ? r.json() : []).then(rows => { if (Array.isArray(rows)) setCmsProjects(rows.map(p => ({...p, image:p.coverImage || p.image, alt:p.title, label:p.statusLabel || p.status || 'Project'}))) }).catch(() => {}) }, [])
 
   useReveal(path)
 
-  const visibleProjects = PROJECTS.filter(
+  const visibleProjects = (cmsProjects || PROJECTS).filter(
     (project) => filter === 'all' || project.status === filter
   )
 

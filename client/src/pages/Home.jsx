@@ -28,6 +28,7 @@ export default function Home() {
   const [filter, setFilter] = useState('all')
   const [activeSection, setActiveSection] = useState('home')
   const [blogs, setBlogs] = useState([])
+  const [cmsProjects, setCmsProjects] = useState(null)
 
   const [siteSettings, setSiteSettings] = useState({
     blogSectionTitle: 'Notes & perspectives',
@@ -37,6 +38,9 @@ export default function Home() {
   })
 
   useEffect(() => {
+    fetch('/api/projects').then(r => r.ok ? r.json() : []).then(rows => {
+      if (Array.isArray(rows)) setCmsProjects(rows.map(p => ({...p, image:p.coverImage || p.image, alt:p.title, label:p.statusLabel || p.status || 'Project'})))
+    }).catch(() => {})
     fetch('/api/blogs')
       .then((response) => response.ok ? response.json() : [])
       .then((data) => {
@@ -179,7 +183,7 @@ export default function Home() {
     }
   }, [])
 
-  const visibleProjects = PROJECTS.filter(
+  const visibleProjects = (cmsProjects || PROJECTS).filter(
     (project) => filter === 'all' || project.status === filter
   )
 

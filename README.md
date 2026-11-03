@@ -1,66 +1,73 @@
-# 46Spaces
+# 46Spaces Website + CMS
 
-React (Vite) frontend and Node.js (Express) API for the 46Spaces website.
+React 19 + Vite frontend with an Express API and a Prisma/PostgreSQL-backed admin workspace.
 
-## Project structure
+## Requirements
 
-<<<<<<< HEAD
-- `client/` — React website, blog pages and admin dashboard
-- `server/` — Express API, authentication and JSON-backed content storage
-- `server/data/` — Runtime data files for blogs, settings and enquiries (not committed)
-=======
-- `client/` — React app (site UI, forms, animations)
-- `server/` — Express API that stores enquiries in `server/data/enquiries.json`
->>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
+- Node.js 20.19+ or 22.12+
+- npm
+- PostgreSQL database
 
 ## Local setup
 
-```bash
-npm install
-npm run install:all
-npm run dev
-```
+1. Install dependencies from the project root:
 
-<<<<<<< HEAD
+   ```bash
+   npm install
+   npm run install:all
+   ```
+
+2. Create `server/.env` by copying `server/.env.example`. Set a working PostgreSQL `DATABASE_URL`, a unique `ADMIN_PASSWORD`, and a long random `ADMIN_SESSION_SECRET`.
+
+3. Generate Prisma Client and apply the database migration:
+
+   ```bash
+   npm run db:setup --prefix server
+   ```
+
+4. Start the frontend and API from the project root:
+
+   ```bash
+   npm run dev
+   ```
+
 - Website: http://localhost:5173
 - API: http://localhost:5000
 - Admin: http://localhost:5173/admin
 
-Default local admin credentials:
+On a brand-new database, the first admin account is created using `ADMIN_USERNAME` and `ADMIN_PASSWORD` from `server/.env`. If an admin already exists in the database, changing those environment variables does not reset its password; use the admin password-change screen instead.
 
-- Username: `Admin`
-- Password: `Admin@123#`
+## CMS features
 
-The admin panel supports blog creation, editing, publishing and deletion; homepage blog display settings; site/contact/social settings; SEO defaults; and enquiry viewing. Published blog pages use `/blog/:slug`.
+- Dashboard, blog management and enquiry inbox
+- Project CRUD with draft/published lifecycle, category, location, cover image and project details
+- Header and footer menus, including nested child items
+- Dynamic form definitions for contact, landowner and channel-partner forms
+- Logo and favicon uploads, site/contact/social/SEO settings
+- Admin name, email and profile picture; password change
+- Media uploads stored under `client/public/uploads`
 
-## Production
+Menus and form schemas are editable as JSON in the admin area. Menu items use `{ "id", "label", "url", "children": [] }`. Form fields use `{ "name", "label", "type", "required", "options": [] }`.
 
-Set these environment variables before starting the server:
+## Production deployment
+
+Set these environment variables for the Express server:
 
 ```bash
 NODE_ENV=production
-ADMIN_USERNAME=Admin
-ADMIN_PASSWORD=use-a-strong-unique-password
-ADMIN_SESSION_SECRET=use-a-long-random-secret
+DATABASE_URL=your-postgresql-connection-string
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=a-strong-initial-password
+ADMIN_SESSION_SECRET=a-long-random-secret
+CLIENT_ORIGIN=https://your-website-domain.com
 ```
 
-Then run:
+Apply migrations and build the frontend:
 
-=======
-- Site: http://localhost:5173
-- API: http://localhost:5000
-
-Form submissions from the site are proxied to `POST /api/enquiries`.
-
-## Production
-
->>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
 ```bash
-npm start
+npm run db:deploy --prefix server
+npm run build
+npm start --prefix server
 ```
 
-<<<<<<< HEAD
-The Express server serves the built frontend and API on the same origin. Keep `server/data/` on persistent storage in production; it contains the blog posts, settings and enquiries. The local default password is intentionally disabled in production unless `ADMIN_PASSWORD` is explicitly configured.
-=======
-This builds the React app and serves it from the Express server on port 5000.
->>>>>>> a2c25c8ff7d08cfe2bb5612765c4b2f0300f6134
+Use persistent storage for PostgreSQL data and uploaded files. Do not rely on an ephemeral serverless filesystem for CMS uploads. If the frontend is deployed separately, route `/api/*` and `/uploads/*` to the Express API host and configure the API origin accordingly.

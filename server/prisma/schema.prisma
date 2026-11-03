@@ -1,0 +1,111 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default("admin")
+  username  String   @unique
+  name      String?
+  email     String?
+  avatar    String?
+  salt      String
+  hash      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id          String   @id
+  title       String
+  slug        String   @unique
+  category    String?
+  location    String?
+  summary     String?  @db.Text
+  description String?  @db.Text
+  coverImage  String?
+  status      String   @default("draft")
+  statusLabel String?
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Blog {
+  id              String   @id @default(uuid())
+  title           String
+  slug            String   @unique
+  excerpt         String?  @db.Text
+  content         String   @db.Text
+  category        String   @default("Insights")
+  author          String   @default("46Spaces")
+  coverImage      String?
+  status          String   @default("draft")
+  seoTitle        String?
+  seoDescription  String?  @db.Text
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Enquiry {
+  id          String   @id
+  type        String?
+  name        String
+  email       String?
+  phone       String?
+  location    String?
+  landType    String?
+  partnerType String?
+  interest    String?
+  topic       String?
+  message     String?  @db.Text
+  fields      Json?
+  formId      String?
+  createdAt   DateTime @default(now())
+}
+
+model Menu {
+  id        String   @id @default("main")
+  header    Json
+  footer    Json
+  updatedAt DateTime @updatedAt
+}
+
+model Form {
+  id             String   @id
+  title          String
+  submitLabel    String?
+  successMessage String?
+  fields         Json
+  updatedAt      DateTime @updatedAt
+}
+
+model SiteSetting {
+  id                      String   @id @default("main")
+  siteName                String   @default("46Spaces")
+  logoUrl                 String?
+  faviconUrl              String?
+  tagline                 String?
+  description             String?  @db.Text
+  contactEmail            String?
+  contactPhone            String?
+  address                 String?  @db.Text
+  instagram               String?
+  linkedin                String?
+  facebook                String?
+  blogSectionTitle        String?
+  blogSectionDescription  String?  @db.Text
+  postsPerPage            Int      @default(6)
+  showBlogSection         Boolean  @default(true)
+  seoTitle                String?
+  seoDescription          String?  @db.Text
+  seoKeywords             String?  @db.Text
+  maintenanceMode         Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
+}

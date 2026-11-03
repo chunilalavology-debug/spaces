@@ -5,10 +5,20 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "db:setup": "prisma generate && prisma migrate deploy && prisma db seed",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.0",
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

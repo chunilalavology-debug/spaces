@@ -2,27 +2,35 @@
 import { useEffect, useState } from 'react'
 import { Link, useRouter } from '../lib/router.jsx'
 
-const NAV = [
-  { to: '/', label: 'Home' },
-  { to: '/about', label: 'About' },
-  { to: '/projects', label: 'Projects' },
-  { to: '/#blogs', label: 'Journal' },
-  { to: '/opportunities', label: 'Opportunities' },
-  { to: '/contact', label: 'Contact' }
+const FALLBACK_NAV = [
+  { id:'home', url:'/', label:'Home' }, { id:'about', url:'/about', label:'About' },
+  { id:'projects', url:'/projects', label:'Projects' }, { id:'journal', url:'/#blogs', label:'Journal' },
+  { id:'opportunities', url:'/opportunities', label:'Opportunities' }, { id:'contact', url:'/contact', label:'Contact' }
 ]
-
-const MOBILE_NAV = [
-  ...NAV.slice(0, 5),
-  { to: '/approach', label: 'Our approach' },
-  NAV[5]
-]
-
+function MenuItems({ items, isActive, onNavigate }) {
+  return items.map(item => (
+    <div className="nav-item-wrap" key={item.id || item.url || item.label}>
+      <Link className={`nav-link ${isActive(item) ? 'is-active' : ''}`} to={item.url || item.to || '#'} onClick={onNavigate}>{item.label}</Link>
+      {Array.isArray(item.children) && item.children.length > 0 && <div className="nav-dropdown"><MenuItems items={item.children} isActive={isActive} onNavigate={onNavigate}/></div>}
+    </div>
+  ))
+}
 export default function Layout({ children }) {
   const { path } = useRouter()
 
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [navItems, setNavItems] = useState(FALLBACK_NAV)
+  const [footerItems, setFooterItems] = useState([])
+  const [siteSettings, setSiteSettings] = useState({ logoUrl: '/assets/logo.png', siteName: '46Spaces' })
+  useEffect(() => {
+    fetch('/api/menus').then(r => r.ok ? r.json() : null).then(data => { if (data?.header?.length) setNavItems(data.header); if (data?.footer?.length) setFooterItems(data.footer) }).catch(() => {})
+    fetch('/api/settings').then(r => r.ok ? r.json() : null).then(data => { if (data) {
+      setSiteSettings(v => ({...v,...data}))
+      if (data.faviconUrl) { let icon = document.querySelector('link[rel="icon"]'); if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon) } icon.href = data.faviconUrl }
+    } }).catch(() => {})
+  }, [])
 
   const year = new Date().getFullYear()
 
@@ -31,18 +39,20 @@ export default function Layout({ children }) {
 
   // Active navigation logic
   const isActive = (item) => {
-    // Home is active ONLY on homepage
-    if (item.label === 'Home') {
+    const target = item.url || item.to || '#'
+
+    // Home is active only on the homepage.
+    if (target === '/' || item.label?.toLowerCase() === 'home') {
       return currentPath === '/'
     }
 
-    // Journal is active ONLY on blog pages
-    if (item.label === 'Journal') {
+    // Journal is active only on blog pages.
+    if (target === '/#blogs' || item.label?.toLowerCase() === 'journal') {
       return currentPath === '/blog' || currentPath.startsWith('/blog/')
     }
 
-    // Other navigation items
-    return currentPath === item.to
+    // Match nested routes to their parent navigation item.
+    return currentPath === target || currentPath.startsWith(`${target}/`)
   }
 
   useEffect(() => {
@@ -101,27 +111,14 @@ export default function Layout({ children }) {
         >
           <img
             className="brand-logo"
-            src="/assets/logo.png"
-            alt="46Spaces"
+            src={siteSettings.logoUrl || '/assets/logo.png'}
+            alt={siteSettings.siteName || '46Spaces'}
           />
         </Link>
 
         {/* Desktop Navigation */}
         <nav className="header-links" aria-label="Main navigation">
-          {NAV.map((item) => {
-            const active = isActive(item)
-
-            return (
-              <Link
-                className={`nav-link ${active ? 'is-active' : ''}`}
-                to={item.to}
-                key={item.label}
-                aria-current={active ? 'page' : undefined}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
+          <MenuItems items={navItems} isActive={isActive} />
         </nav>
 
         {/* Mobile Menu Toggle */}
@@ -143,21 +140,7 @@ export default function Layout({ children }) {
         id="mobileMenu"
         aria-label="Mobile navigation"
       >
-        {MOBILE_NAV.map((item) => {
-          const active = isActive(item)
-
-          return (
-            <Link
-              to={item.to}
-              key={item.label}
-              className={active ? 'is-active' : ''}
-              aria-current={active ? 'page' : undefined}
-              onClick={() => setMenuOpen(false)}
-            >
-              {item.label}
-            </Link>
-          )
-        })}
+        <MenuItems items={navItems} isActive={isActive} onNavigate={() => setMenuOpen(false)} />
 
         <p className="eyebrow">Land · Ideas · Possibility</p>
       </nav>
@@ -171,8 +154,8 @@ export default function Layout({ children }) {
             <Link className="brand footer-logo" to="/">
               <img
                 className="brand-logo"
-                src="/assets/logo.png"
-                alt="46Spaces"
+                src={siteSettings.logoUrl || '/assets/logo.png'}
+                alt={siteSettings.siteName || '46Spaces'}
               />
             </Link>
 
@@ -182,20 +165,7 @@ export default function Layout({ children }) {
           </div>
 
           <nav className="footer-nav" aria-label="Footer navigation">
-            {NAV.map((item) => {
-              const active = isActive(item)
-
-              return (
-                <Link
-                  className={`nav-link ${active ? 'is-active' : ''}`}
-                  to={item.to}
-                  key={item.label}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {item.label}
-                </Link>
-              )
-            })}
+            <MenuItems items={footerItems.length ? footerItems : navItems} isActive={isActive} />
           </nav>
         </div>
 

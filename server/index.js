@@ -1,3 +1,4 @@
+import 'dotenv/config'
 
 import express from 'express'
 import cors from 'cors'
@@ -5,17 +6,13 @@ import fs from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
 import { fileURLToPath } from 'url'
+import prisma from './lib/prisma.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 5000
 
-const DATA_DIR = path.join(__dirname, 'data')
-const ENQUIRIES_FILE = path.join(DATA_DIR, 'enquiries.json')
-const BLOGS_FILE = path.join(DATA_DIR, 'blogs.json')
-const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json')
-const ADMIN_FILE = path.join(DATA_DIR, 'admin.json')
-
+const UPLOAD_DIR = path.join(__dirname, '..', 'client', 'public', 'uploads')
 const CLIENT_DIST = path.join(__dirname, '..', 'client', 'dist')
 
 const SESSION_SECRET =
@@ -52,36 +49,11 @@ app.use(
   })
 )
 
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '15mb' }))
 
-async function readJson(file, fallback) {
-  try {
-    return JSON.parse(await fs.readFile(file, 'utf8'))
-  } catch (error) {
-    if (error.code === 'ENOENT') return fallback
-    throw error
-  }
-}
-
-async function writeJson(file, value) {
-  await fs.mkdir(DATA_DIR, { recursive: true })
-
-  const temp = `${file}.${process.pid}.tmp`
-
-  await fs.writeFile(temp, JSON.stringify(value, null, 2), {
-    mode: 0o600
-  })
-
-  await fs.rename(temp, file)
-}
-
-async function getAdminCredentials() {
-  try {
-    return await readJson(ADMIN_FILE, null)
-  } catch (error) {
-    throw error
-  }
-}
+// --------------------------------------------------
+// Helpers
+// --------------------------------------------------
 
 function passwordRecord(password) {
   const salt = crypto.randomBytes(16).toString('hex')
@@ -101,57 +73,6 @@ function verifyPassword(password, record) {
     crypto.timingSafeEqual(actual, expected)
   )
 }
-
-async function ensureAdminCredentials() {
-  if (process.env.NODE_ENV === 'production' && !SESSION_SECRET) {
-    throw new Error(
-      'Configure ADMIN_SESSION_SECRET before enabling the admin panel.'
-    )
-  }
-
-  let credentials = await getAdminCredentials()
-
-  if (!credentials) {
-    if (!ADMIN_PASSWORD) {
-      throw new Error(
-        'Configure ADMIN_PASSWORD before the first production admin login.'
-      )
-    }
-
-    credentials = {
-      username: ADMIN_USERNAME,
-      ...passwordRecord(ADMIN_PASSWORD)
-    }
-
-    await writeJson(ADMIN_FILE, credentials)
-  }
-
-  return credentials
-}
-
-const readEnquiries = () => readJson(ENQUIRIES_FILE, [])
-const readBlogs = () => readJson(BLOGS_FILE, [])
-
-const readSettings = () =>
-  readJson(SETTINGS_FILE, {
-    siteName: '46Spaces',
-    tagline: 'Land. Ideas. Possibility.',
-    description: '',
-    contactEmail: 'hello@46spaces.com',
-    contactPhone: '',
-    address: '',
-    instagram: '',
-    linkedin: '',
-    facebook: '',
-    blogSectionTitle: 'Notes & perspectives',
-    blogSectionDescription: 'Ideas, insights and stories from 46Spaces.',
-    postsPerPage: 6,
-    showBlogSection: true,
-    seoTitle: '46Spaces — Land. Ideas. Possibility.',
-    seoDescription: '',
-    seoKeywords: '',
-    maintenanceMode: false
-  })
 
 function safeEqual(a, b) {
   const left = Buffer.from(String(a))
@@ -186,8 +107,8 @@ function getCookie(req, name) {
 
   const item = raw
     .split(';')
-    .map((v) => v.trim())
-    .find((v) => v.startsWith(`${name}=`))
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(`${name}=`))
 
   return item ? decodeURIComponent(item.slice(name.length + 1)) : ''
 }
@@ -196,11 +117,7 @@ function requireAdmin(req, res, next) {
   const token = getCookie(req, 'spaces_admin')
   const [payload, signature] = token.split('.')
 
-  if (
-    !payload ||
-    !signature ||
-    !safeEqual(signature, sign(payload))
-  ) {
+  if (!payload || !signature || !safeEqual(signature, sign(payload))) {
     return res.status(401).json({
       message: 'Please sign in to continue.'
     })
@@ -226,13 +143,94 @@ function requireAdmin(req, res, next) {
   }
 }
 
+function handleDatabaseError(error, res, next) {
+  if (error?.code === 'P2002') {
+    return res.status(409).json({
+      message: 'This record already exists. Please use a different slug or value.'
+    })
+  }
+
+  if (error?.code === 'P2025') {
+    return res.status(404).json({
+      message: 'Record not found.'
+    })
+  }
+
+  next(error)
+}
+
+function createSlug(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+// --------------------------------------------------
+// Admin database helpers
+// --------------------------------------------------
+
+async function ensureAdminCredentials() {
+  if (process.env.NODE_ENV === 'production' && !SESSION_SECRET) {
+    throw new Error(
+      'Configure ADMIN_SESSION_SECRET before enabling the admin panel.'
+    )
+  }
+
+  let admin = await prisma.admin.findUnique({
+    where: { id: 'admin' }
+  })
+
+  if (!admin) {
+    if (!ADMIN_PASSWORD) {
+      throw new Error(
+        'Configure ADMIN_PASSWORD before the first production admin login.'
+      )
+    }
+
+    const credentials = passwordRecord(ADMIN_PASSWORD)
+
+    admin = await prisma.admin.create({
+      data: {
+        id: 'admin',
+        username: ADMIN_USERNAME,
+        ...credentials
+      }
+    })
+  }
+
+  return admin
+}
+
+// --------------------------------------------------
+// Login rate limiting
+// --------------------------------------------------
+
 const loginAttempts = new Map()
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: '46spaces-api' })
+// --------------------------------------------------
+// Health
+// --------------------------------------------------
+
+app.get('/api/health', async (_req, res, next) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+
+    res.json({
+      ok: true,
+      service: '46spaces-api',
+      database: 'connected'
+    })
+  } catch (error) {
+    next(error)
+  }
 })
 
-// Admin login
+// --------------------------------------------------
+// Admin authentication
+// --------------------------------------------------
+
 app.post('/api/admin/login', async (req, res, next) => {
   try {
     const ip = req.ip || req.socket.remoteAddress || 'unknown'
@@ -253,13 +251,14 @@ app.post('/api/admin/login', async (req, res, next) => {
       attempt.until = Date.now() + 10 * 60 * 1000
     }
 
-    const credentials = await ensureAdminCredentials()
+    const admin = await ensureAdminCredentials()
     const { username, password } = req.body || {}
 
-    if (
-      !safeEqual(username || '', credentials.username) ||
-      !verifyPassword(password || '', credentials)
-    ) {
+    const validUsername =
+      safeEqual(username || '', admin.username) ||
+      safeEqual(username || '', admin.email || '')
+
+    if (!validUsername || !verifyPassword(password || '', admin)) {
       attempt.count += 1
       loginAttempts.set(ip, attempt)
 
@@ -270,7 +269,7 @@ app.post('/api/admin/login', async (req, res, next) => {
 
     loginAttempts.delete(ip)
 
-    res.cookie('spaces_admin', createSession(credentials.username), {
+    res.cookie('spaces_admin', createSession(admin.username), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -280,18 +279,29 @@ app.post('/api/admin/login', async (req, res, next) => {
 
     res.json({
       ok: true,
-      username: credentials.username
+      username: admin.username
     })
   } catch (error) {
     next(error)
   }
 })
 
-app.get('/api/admin/session', requireAdmin, (req, res) => {
-  res.json({
-    ok: true,
-    username: req.admin.username
-  })
+app.get('/api/admin/session', requireAdmin, async (req, res, next) => {
+  try {
+    const admin = await ensureAdminCredentials()
+
+    res.json({
+      ok: true,
+      username: req.admin.username,
+      profile: {
+        name: admin.name || admin.username || 'Administrator',
+        email: admin.email || '',
+        avatar: admin.avatar || ''
+      }
+    })
+  } catch (error) {
+    next(error)
+  }
 })
 
 app.post('/api/admin/logout', (_req, res) => {
@@ -308,10 +318,10 @@ app.post('/api/admin/logout', (_req, res) => {
 // Change admin password
 app.put('/api/admin/password', requireAdmin, async (req, res, next) => {
   try {
-    const credentials = await ensureAdminCredentials()
+    const admin = await ensureAdminCredentials()
     const { currentPassword, newPassword } = req.body || {}
 
-    if (!verifyPassword(currentPassword || '', credentials)) {
+    if (!verifyPassword(currentPassword || '', admin)) {
       return res.status(400).json({
         message: 'Current password is incorrect.'
       })
@@ -323,9 +333,11 @@ app.put('/api/admin/password', requireAdmin, async (req, res, next) => {
       })
     }
 
-    await writeJson(ADMIN_FILE, {
-      username: credentials.username,
-      ...passwordRecord(newPassword)
+    const credentials = passwordRecord(newPassword)
+
+    await prisma.admin.update({
+      where: { id: 'admin' },
+      data: credentials
     })
 
     res.json({ ok: true })
@@ -334,20 +346,21 @@ app.put('/api/admin/password', requireAdmin, async (req, res, next) => {
   }
 })
 
+// --------------------------------------------------
 // Public blogs
+// --------------------------------------------------
+
 app.get('/api/blogs', async (_req, res, next) => {
   try {
-    const blogs = await readBlogs()
+    const blogs = await prisma.blog.findMany({
+      where: { status: 'published' },
+      orderBy: [
+        { publishedAt: 'desc' },
+        { updatedAt: 'desc' }
+      ]
+    })
 
-    res.json(
-      blogs
-        .filter((blog) => blog.status === 'published')
-        .sort(
-          (a, b) =>
-            new Date(b.publishedAt || b.updatedAt) -
-            new Date(a.publishedAt || a.updatedAt)
-        )
-    )
+    res.json(blogs)
   } catch (error) {
     next(error)
   }
@@ -355,13 +368,12 @@ app.get('/api/blogs', async (_req, res, next) => {
 
 app.get('/api/blogs/:slug', async (req, res, next) => {
   try {
-    const blogs = await readBlogs()
-
-    const blog = blogs.find(
-      (item) =>
-        item.slug === req.params.slug &&
-        item.status === 'published'
-    )
+    const blog = await prisma.blog.findFirst({
+      where: {
+        slug: req.params.slug,
+        status: 'published'
+      }
+    })
 
     if (!blog) {
       return res.status(404).json({
@@ -375,14 +387,17 @@ app.get('/api/blogs/:slug', async (req, res, next) => {
   }
 })
 
+// --------------------------------------------------
 // Admin blog management
+// --------------------------------------------------
+
 app.get('/api/admin/blogs', requireAdmin, async (_req, res, next) => {
   try {
-    res.json(
-      (await readBlogs()).sort(
-        (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
-      )
-    )
+    const blogs = await prisma.blog.findMany({
+      orderBy: { updatedAt: 'desc' }
+    })
+
+    res.json(blogs)
   } catch (error) {
     next(error)
   }
@@ -391,11 +406,7 @@ app.get('/api/admin/blogs', requireAdmin, async (_req, res, next) => {
 function normalizeBlog(body, existing = {}) {
   const title = String(body.title || '').trim()
 
-  const slug = String(body.slug || title)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
+  const slug = createSlug(body.slug || title)
 
   if (!title || !slug || !String(body.content || '').trim()) {
     return {
@@ -404,7 +415,6 @@ function normalizeBlog(body, existing = {}) {
   }
 
   return {
-    ...existing,
     title,
     slug,
     excerpt: String(body.excerpt || '').trim(),
@@ -415,57 +425,44 @@ function normalizeBlog(body, existing = {}) {
     status: body.status === 'published' ? 'published' : 'draft',
     seoTitle: String(body.seoTitle || '').trim(),
     seoDescription: String(body.seoDescription || '').trim(),
-    updatedAt: new Date().toISOString()
+    publishedAt:
+      body.status === 'published'
+        ? existing.publishedAt || new Date()
+        : null
   }
 }
 
 app.post('/api/admin/blogs', requireAdmin, async (req, res, next) => {
   try {
-    const blogs = await readBlogs()
     const blog = normalizeBlog(req.body)
 
     if (blog.error) {
       return res.status(400).json({ message: blog.error })
     }
 
-    if (blogs.some((item) => item.slug === blog.slug)) {
-      return res.status(409).json({
-        message: 'This slug is already in use.'
-      })
-    }
+    const created = await prisma.blog.create({
+      data: blog
+    })
 
-    blog.id = crypto.randomUUID()
-    blog.createdAt = new Date().toISOString()
-
-    if (blog.status === 'published') {
-      blog.publishedAt = blog.createdAt
-    }
-
-    blogs.push(blog)
-
-    await writeJson(BLOGS_FILE, blogs)
-
-    res.status(201).json(blog)
+    res.status(201).json(created)
   } catch (error) {
-    next(error)
+    handleDatabaseError(error, res, next)
   }
 })
 
 app.put('/api/admin/blogs/:id', requireAdmin, async (req, res, next) => {
   try {
-    const blogs = await readBlogs()
+    const existing = await prisma.blog.findUnique({
+      where: { id: req.params.id }
+    })
 
-    const index = blogs.findIndex(
-      (item) => item.id === req.params.id
-    )
-
-    if (index < 0) {
+    if (!existing) {
       return res.status(404).json({
         message: 'Blog not found.'
       })
     }
 
-    const blog = normalizeBlog(req.body, blogs[index])
+    const blog = normalizeBlog(req.body, existing)
 
     if (blog.error) {
       return res.status(400).json({
@@ -473,45 +470,32 @@ app.put('/api/admin/blogs/:id', requireAdmin, async (req, res, next) => {
       })
     }
 
-    if (
-      blogs.some(
-        (item, i) => i !== index && item.slug === blog.slug
-      )
-    ) {
-      return res.status(409).json({
-        message: 'This slug is already in use.'
-      })
-    }
+    const updated = await prisma.blog.update({
+      where: { id: req.params.id },
+      data: blog
+    })
 
-    if (blog.status === 'published' && !blog.publishedAt) {
-      blog.publishedAt = new Date().toISOString()
-    }
-
-    blogs[index] = blog
-
-    await writeJson(BLOGS_FILE, blogs)
-
-    res.json(blog)
+    res.json(updated)
   } catch (error) {
-    next(error)
+    handleDatabaseError(error, res, next)
   }
 })
 
 app.delete('/api/admin/blogs/:id', requireAdmin, async (req, res, next) => {
   try {
-    const blogs = await readBlogs()
+    const existing = await prisma.blog.findUnique({
+      where: { id: req.params.id }
+    })
 
-    const nextBlogs = blogs.filter(
-      (item) => item.id !== req.params.id
-    )
-
-    if (nextBlogs.length === blogs.length) {
+    if (!existing) {
       return res.status(404).json({
         message: 'Blog not found.'
       })
     }
 
-    await writeJson(BLOGS_FILE, nextBlogs)
+    await prisma.blog.delete({
+      where: { id: req.params.id }
+    })
 
     res.json({ ok: true })
   } catch (error) {
@@ -519,10 +503,52 @@ app.delete('/api/admin/blogs/:id', requireAdmin, async (req, res, next) => {
   }
 })
 
+// --------------------------------------------------
 // Site settings
+// --------------------------------------------------
+
+const DEFAULT_SETTINGS = {
+  siteName: '46Spaces',
+  logoUrl: '/assets/logo.png',
+  faviconUrl: '/favicon.svg',
+  tagline: 'Land. Ideas. Possibility.',
+  description: '',
+  contactEmail: 'hello@46spaces.com',
+  contactPhone: '',
+  address: '',
+  instagram: '',
+  linkedin: '',
+  facebook: '',
+  blogSectionTitle: 'Notes & perspectives',
+  blogSectionDescription: 'Ideas, insights and stories from 46Spaces.',
+  postsPerPage: 6,
+  showBlogSection: true,
+  seoTitle: '46Spaces — Land. Ideas. Possibility.',
+  seoDescription: '',
+  seoKeywords: '',
+  maintenanceMode: false
+}
+
+async function getSettings() {
+  let settings = await prisma.siteSetting.findUnique({
+    where: { id: 'main' }
+  })
+
+  if (!settings) {
+    settings = await prisma.siteSetting.create({
+      data: {
+        id: 'main',
+        ...DEFAULT_SETTINGS
+      }
+    })
+  }
+
+  return settings
+}
+
 app.get('/api/settings', async (_req, res, next) => {
   try {
-    const settings = await readSettings()
+    const settings = await getSettings()
 
     res.json({
       ...settings,
@@ -535,7 +561,7 @@ app.get('/api/settings', async (_req, res, next) => {
 
 app.get('/api/admin/settings', requireAdmin, async (_req, res, next) => {
   try {
-    res.json(await readSettings())
+    res.json(await getSettings())
   } catch (error) {
     next(error)
   }
@@ -543,10 +569,10 @@ app.get('/api/admin/settings', requireAdmin, async (_req, res, next) => {
 
 app.put('/api/admin/settings', requireAdmin, async (req, res, next) => {
   try {
-    const current = await readSettings()
-
     const allowed = [
       'siteName',
+      'logoUrl',
+      'faviconUrl',
       'tagline',
       'description',
       'contactEmail',
@@ -565,35 +591,483 @@ app.put('/api/admin/settings', requireAdmin, async (req, res, next) => {
       'maintenanceMode'
     ]
 
-    const nextSettings = { ...current }
+    const current = await getSettings()
+    const data = {}
 
     for (const key of allowed) {
       if (req.body?.[key] !== undefined) {
-        nextSettings[key] = req.body[key]
+        data[key] = req.body[key]
       }
     }
 
-    nextSettings.postsPerPage = Math.min(
-      24,
-      Math.max(1, Number(nextSettings.postsPerPage) || 6)
-    )
+    if (data.postsPerPage !== undefined) {
+      data.postsPerPage = Math.min(
+        24,
+        Math.max(1, Number(data.postsPerPage) || 6)
+      )
+    }
 
-    await writeJson(SETTINGS_FILE, nextSettings)
+    const updated = await prisma.siteSetting.update({
+      where: { id: 'main' },
+      data
+    })
 
-    res.json(nextSettings)
+    res.json(updated)
   } catch (error) {
     next(error)
   }
 })
 
-// Enquiries
-app.get('/api/admin/enquiries', requireAdmin, async (_req, res, next) => {
+// --------------------------------------------------
+// Projects
+// --------------------------------------------------
+
+app.get('/api/projects', async (_req, res, next) => {
   try {
-    res.json(
-      (await readEnquiries()).sort(
-        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    const projects = await prisma.project.findMany({
+      where: { status: { not: 'draft' } },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    res.json(projects)
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/admin/projects', requireAdmin, async (_req, res, next) => {
+  try {
+    const projects = await prisma.project.findMany({
+      orderBy: { createdAt: 'desc' }
+    })
+
+    res.json(projects)
+  } catch (error) {
+    next(error)
+  }
+})
+
+function normalizeProject(body, existing = {}) {
+  const title = String(body.title || existing.title || '').trim()
+  const slug = createSlug(body.slug || title || existing.slug)
+
+  if (!title || !slug) {
+    return { error: 'Project title is required.' }
+  }
+
+  return {
+    title,
+    slug,
+    category: body.category ?? existing.category ?? null,
+    location: body.location ?? existing.location ?? null,
+    summary: body.summary ?? existing.summary ?? null,
+    description: body.description ?? existing.description ?? null,
+    coverImage: body.coverImage ?? existing.coverImage ?? null,
+    status: body.status ?? existing.status ?? 'draft',
+    statusLabel: body.statusLabel ?? existing.statusLabel ?? null,
+    featured: body.featured ?? existing.featured ?? false
+  }
+}
+
+app.post('/api/admin/projects', requireAdmin, async (req, res, next) => {
+  try {
+    const project = normalizeProject(req.body)
+
+    if (project.error) {
+      return res.status(400).json({
+        message: project.error
+      })
+    }
+
+    const created = await prisma.project.create({
+      data: {
+        id: crypto.randomUUID(),
+        ...project
+      }
+    })
+
+    res.status(201).json(created)
+  } catch (error) {
+    handleDatabaseError(error, res, next)
+  }
+})
+
+app.put('/api/admin/projects/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const existing = await prisma.project.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!existing) {
+      return res.status(404).json({
+        message: 'Project not found.'
+      })
+    }
+
+    const project = normalizeProject(req.body, existing)
+
+    if (project.error) {
+      return res.status(400).json({
+        message: project.error
+      })
+    }
+
+    const updated = await prisma.project.update({
+      where: { id: req.params.id },
+      data: project
+    })
+
+    res.json(updated)
+  } catch (error) {
+    handleDatabaseError(error, res, next)
+  }
+})
+
+app.delete('/api/admin/projects/:id', requireAdmin, async (req, res, next) => {
+  try {
+    const existing = await prisma.project.findUnique({
+      where: { id: req.params.id }
+    })
+
+    if (!existing) {
+      return res.status(404).json({
+        message: 'Project not found.'
+      })
+    }
+
+    await prisma.project.delete({
+      where: { id: req.params.id }
+    })
+
+    res.json({ ok: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
+// --------------------------------------------------
+// Menus
+// --------------------------------------------------
+
+const DEFAULT_MENUS = {
+  header: [
+    { id: 'home', label: 'Home', url: '/' },
+    { id: 'about', label: 'About', url: '/about' },
+    { id: 'projects', label: 'Projects', url: '/projects' },
+    { id: 'journal', label: 'Journal', url: '/#blogs' },
+    { id: 'opportunities', label: 'Opportunities', url: '/opportunities' },
+    { id: 'contact', label: 'Contact', url: '/contact' }
+  ],
+  footer: [
+    { id: 'about', label: 'About', url: '/about' },
+    { id: 'projects', label: 'Projects', url: '/projects' },
+    { id: 'contact', label: 'Contact', url: '/contact' }
+  ]
+}
+
+async function getMenus() {
+  let menus = await prisma.menu.findUnique({
+    where: { id: 'main' }
+  })
+
+  if (!menus) {
+    menus = await prisma.menu.create({
+      data: {
+        id: 'main',
+        header: DEFAULT_MENUS.header,
+        footer: DEFAULT_MENUS.footer
+      }
+    })
+  }
+
+  return menus
+}
+
+app.get('/api/menus', async (_req, res, next) => {
+  try {
+    res.json(await getMenus())
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.put('/api/admin/menus', requireAdmin, async (req, res, next) => {
+  try {
+    const menus = req.body || {}
+
+    if (!Array.isArray(menus.header) || !Array.isArray(menus.footer)) {
+      return res.status(400).json({
+        message: 'Header and footer menus must be arrays.'
+      })
+    }
+
+    const updated = await prisma.menu.upsert({
+      where: { id: 'main' },
+      create: {
+        id: 'main',
+        header: menus.header,
+        footer: menus.footer
+      },
+      update: {
+        header: menus.header,
+        footer: menus.footer
+      }
+    })
+
+    res.json(updated)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// --------------------------------------------------
+// Forms
+// --------------------------------------------------
+
+const DEFAULT_FORMS = [
+  {
+    id: 'contact',
+    title: 'Contact form',
+    submitLabel: 'Send enquiry',
+    successMessage: 'Thank you. We will be in touch.',
+    fields: [
+      { name: 'name', label: 'Your name', type: 'text', required: true },
+      { name: 'email', label: 'Email address', type: 'email', required: true },
+      { name: 'phone', label: 'Phone number', type: 'tel' },
+      { name: 'message', label: 'Message', type: 'textarea', required: true }
+    ]
+  },
+  {
+    id: 'landowner',
+    title: 'Landowner enquiry',
+    submitLabel: 'Submit land details',
+    successMessage: 'Thank you. We will review your details.',
+    fields: [
+      { name: 'name', label: 'Your name', type: 'text', required: true },
+      { name: 'email', label: 'Email address', type: 'email', required: true },
+      { name: 'phone', label: 'Phone number', type: 'tel' },
+      { name: 'location', label: 'Land location', type: 'text' },
+      { name: 'message', label: 'Property details', type: 'textarea' }
+    ]
+  },
+  {
+    id: 'partner',
+    title: 'Channel partner enquiry',
+    submitLabel: 'Start a conversation',
+    successMessage: 'Thank you. We will contact you shortly.',
+    fields: [
+      { name: 'name', label: 'Your name', type: 'text', required: true },
+      { name: 'email', label: 'Email address', type: 'email', required: true },
+      { name: 'phone', label: 'Phone number', type: 'tel' },
+      { name: 'message', label: 'How can we work together?', type: 'textarea' }
+    ]
+  }
+]
+
+async function getForms() {
+  const forms = await prisma.form.findMany({
+    orderBy: { id: 'asc' }
+  })
+
+  if (forms.length > 0) return forms
+
+  for (const form of DEFAULT_FORMS) {
+    await prisma.form.upsert({
+      where: { id: form.id },
+      create: form,
+      update: {}
+    })
+  }
+
+  return prisma.form.findMany({
+    orderBy: { id: 'asc' }
+  })
+}
+
+app.get('/api/forms', async (_req, res, next) => {
+  try {
+    res.json(await getForms())
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.put('/api/admin/forms', requireAdmin, async (req, res, next) => {
+  try {
+    if (!Array.isArray(req.body)) {
+      return res.status(400).json({
+        message: 'Forms must be an array.'
+      })
+    }
+
+    const forms = req.body.map((form) => ({
+      id: String(form.id || '').trim(),
+      title: String(form.title || '').trim(),
+      submitLabel: form.submitLabel || null,
+      successMessage: form.successMessage || null,
+      fields: Array.isArray(form.fields) ? form.fields : []
+    }))
+
+    if (forms.some((form) => !form.id || !form.title)) {
+      return res.status(400).json({
+        message: 'Every form must have an ID and title.'
+      })
+    }
+
+    await prisma.$transaction(
+      forms.map((form) =>
+        prisma.form.upsert({
+          where: { id: form.id },
+          create: form,
+          update: {
+            title: form.title,
+            submitLabel: form.submitLabel,
+            successMessage: form.successMessage,
+            fields: form.fields
+          }
+        })
       )
     )
+
+    const savedForms = await prisma.form.findMany({
+      orderBy: { id: 'asc' }
+    })
+
+    res.json(savedForms)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// --------------------------------------------------
+// Uploads and media
+// --------------------------------------------------
+
+app.post('/api/admin/uploads', requireAdmin, async (req, res, next) => {
+  try {
+    const { data, filename } = req.body || {}
+
+    const match =
+      /^data:(image\/(?:png|jpeg|jpg|webp|gif|svg\+xml));base64,([A-Za-z0-9+/=]+)$/.exec(
+        String(data || '')
+      )
+
+    if (!match) {
+      return res.status(400).json({
+        message: 'Please upload a valid image.'
+      })
+    }
+
+    const buffer = Buffer.from(match[2], 'base64')
+
+    if (buffer.length > 8 * 1024 * 1024) {
+      return res.status(413).json({
+        message: 'Image must be smaller than 8 MB.'
+      })
+    }
+
+    const ext =
+      ({
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/svg+xml': 'svg'
+      })[match[1]] || match[1].split('/')[1]
+
+    const safeName = String(filename || 'image')
+      .replace(/[^a-z0-9_-]/gi, '-')
+      .slice(0, 40)
+
+    const name = `${Date.now()}-${safeName}.${ext}`
+
+    await fs.mkdir(UPLOAD_DIR, { recursive: true })
+    await fs.writeFile(path.join(UPLOAD_DIR, name), buffer)
+
+    res.status(201).json({
+      url: `/uploads/${name}`,
+      filename: name,
+      size: buffer.length
+    })
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/admin/media', requireAdmin, async (_req, res, next) => {
+  try {
+    await fs.mkdir(UPLOAD_DIR, { recursive: true })
+
+    const files = await fs.readdir(UPLOAD_DIR)
+
+    res.json(
+      files
+        .filter((file) => /\.(png|jpe?g|webp|gif|svg)$/i.test(file))
+        .map((file) => ({
+          name: file,
+          url: `/uploads/${file}`
+        }))
+    )
+  } catch (error) {
+    next(error)
+  }
+})
+
+// --------------------------------------------------
+// Admin profile
+// --------------------------------------------------
+
+app.put('/api/admin/profile', requireAdmin, async (req, res, next) => {
+  try {
+    const current = await ensureAdminCredentials()
+
+    const name = String(req.body?.name || '').trim()
+    const email = String(req.body?.email || '').trim().toLowerCase()
+    const avatar = String(req.body?.avatar || '')
+
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        message: 'Enter an admin name and valid email address.'
+      })
+    }
+
+    const updated = await prisma.admin.update({
+      where: { id: 'admin' },
+      data: {
+        username: name,
+        name,
+        email,
+        avatar
+      }
+    })
+
+    res.cookie('spaces_admin', createSession(updated.username), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: SESSION_TTL,
+      path: '/'
+    })
+
+    res.json({
+      name: updated.name,
+      email: updated.email,
+      avatar: updated.avatar
+    })
+  } catch (error) {
+    handleDatabaseError(error, res, next)
+  }
+})
+
+// --------------------------------------------------
+// Enquiries
+// --------------------------------------------------
+
+app.get('/api/admin/enquiries', requireAdmin, async (_req, res, next) => {
+  try {
+    const enquiries = await prisma.enquiry.findMany({
+      orderBy: { createdAt: 'desc' }
+    })
+
+    res.json(enquiries)
   } catch (error) {
     next(error)
   }
@@ -601,19 +1075,14 @@ app.get('/api/admin/enquiries', requireAdmin, async (_req, res, next) => {
 
 app.post('/api/enquiries', async (req, res, next) => {
   try {
-    const { type, name, email, message, consent } = req.body || {}
-
-    if (!name || !email) {
-      return res.status(400).json({
-        message: 'Name and email are required.'
-      })
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
-      return res.status(400).json({
-        message: 'Please enter a valid email address.'
-      })
-    }
+    const {
+      type,
+      name,
+      message,
+      email,
+      consent,
+      formId
+    } = req.body || {}
 
     if (!consent) {
       return res.status(400).json({
@@ -621,26 +1090,36 @@ app.post('/api/enquiries', async (req, res, next) => {
       })
     }
 
-    const enquiry = {
-      id: Date.now().toString(36),
-      type: type || 'General contact',
-      name: String(name).trim(),
-      email: String(email).trim().toLowerCase(),
-      phone: req.body.phone ? String(req.body.phone).trim() : '',
-      location: req.body.location ? String(req.body.location).trim() : '',
-      landType: req.body.landType || '',
-      partnerType: req.body.partnerType || '',
-      interest: req.body.interest || '',
-      topic: req.body.topic || '',
-      message: message ? String(message).trim() : '',
-      createdAt: new Date().toISOString()
+    if (
+      email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))
+    ) {
+      return res.status(400).json({
+        message: 'Please enter a valid email address.'
+      })
     }
 
-    const enquiries = await readEnquiries()
-
-    enquiries.push(enquiry)
-
-    await writeJson(ENQUIRIES_FILE, enquiries)
+    const enquiry = await prisma.enquiry.create({
+      data: {
+        id: crypto.randomUUID(),
+        type: type || 'General contact',
+        name: String(name || req.body?.fullName || 'Website visitor').trim(),
+        email: String(email || '').trim().toLowerCase(),
+        phone: req.body.phone ? String(req.body.phone).trim() : '',
+        location: req.body.location ? String(req.body.location).trim() : '',
+        landType: req.body.landType || '',
+        partnerType: req.body.partnerType || '',
+        interest: req.body.interest || '',
+        topic: req.body.topic || '',
+        message: message ? String(message).trim() : '',
+        fields: Object.fromEntries(
+          Object.entries(req.body || {}).filter(
+            ([key]) => !['consent', 'type', 'formId'].includes(key)
+          )
+        ),
+        formId: String(formId || '')
+      }
+    })
 
     res.status(201).json({
       ok: true,
@@ -651,7 +1130,11 @@ app.post('/api/enquiries', async (req, res, next) => {
   }
 })
 
-// Serve frontend
+// --------------------------------------------------
+// Static files
+// --------------------------------------------------
+
+app.use('/uploads', express.static(UPLOAD_DIR))
 app.use(express.static(CLIENT_DIST))
 
 app.get(/.*/, (_req, res, next) => {
@@ -663,7 +1146,10 @@ app.get(/.*/, (_req, res, next) => {
   )
 })
 
+// --------------------------------------------------
 // Error handler
+// --------------------------------------------------
+
 app.use((error, _req, res, _next) => {
   console.error(error)
 
@@ -671,6 +1157,10 @@ app.use((error, _req, res, _next) => {
     message: 'Something went wrong. Please try again.'
   })
 })
+
+// --------------------------------------------------
+// Start server
+// --------------------------------------------------
 
 app.listen(PORT, () => {
   console.log(`46Spaces API running on http://localhost:${PORT}`)

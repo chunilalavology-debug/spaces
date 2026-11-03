@@ -1,7 +1,13 @@
 node_modules/
+**/node_modules/
+
 dist/
+**/dist/
+
 .env
-.env.local
+.env.*
+!.env.example
+
 *.log
 .DS_Store
 extracted/

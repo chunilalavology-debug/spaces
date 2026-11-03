@@ -1,12 +1,53 @@
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useRouter } from '../lib/router.jsx'
 import { PROJECTS } from './projectData.js'
 
 export default function ProjectDetail() {
   const { path } = useRouter()
   const slug = path.split('/')[2]
-  const project = PROJECTS.find(item => item.slug === slug)
+
+  const [cmsProjects, setCmsProjects] = useState(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    fetch('/api/projects')
+      .then((response) => (response.ok ? response.json() : []))
+      .then((rows) => {
+        if (isMounted) {
+          setCmsProjects(Array.isArray(rows) ? rows : [])
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setCmsProjects([])
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const cmsProject = Array.isArray(cmsProjects)
+    ? cmsProjects.find((item) => item.slug === slug)
+    : null
+
+  const project =
+    cmsProjects === null
+      ? PROJECTS.find((item) => item.slug === slug)
+      : cmsProject
+        ? {
+            ...cmsProject,
+            image: cmsProject.coverImage || cmsProject.image,
+            alt: cmsProject.title,
+            label:
+              cmsProject.statusLabel ||
+              cmsProject.status ||
+              'Project',
+          }
+        : PROJECTS.find((item) => item.slug === slug)
 
   useEffect(() => {
     if (!project) {
@@ -17,13 +58,14 @@ export default function ProjectDetail() {
     document.title = `${project.title} | 46Spaces`
 
     let meta = document.querySelector('meta[name="description"]')
+
     if (!meta) {
       meta = document.createElement('meta')
       meta.name = 'description'
       document.head.appendChild(meta)
     }
 
-    meta.content = project.summary
+    meta.content = project.summary || project.description || ''
   }, [project])
 
   if (!project) {
@@ -36,6 +78,8 @@ export default function ProjectDetail() {
     )
   }
 
+  const summary = project.summary || project.description || ''
+
   return (
     <main className="single-blog single-project">
       <div className="single-blog-inner">
@@ -45,20 +89,26 @@ export default function ProjectDetail() {
 
         <header>
           <p className="eyebrow">
-            {project.label} · {project.location}
+            {project.label || 'Project'}
+            {project.location ? ` · ${project.location}` : ''}
           </p>
+
           <h1>{project.title}</h1>
-          <p className="single-blog-excerpt">{project.summary}</p>
+
+          <p className="single-blog-excerpt">{summary}</p>
         </header>
 
-        <img
-          className="single-blog-cover"
-          src={project.image}
-          alt={project.alt}
-        />
+        {project.image && (
+          <img
+            className="single-blog-cover"
+            src={project.image}
+            alt={project.alt || project.title}
+          />
+        )}
 
         <article className="single-blog-content">
-          <p>{project.summary}</p>
+          <p>{summary}</p>
+
           <p>
             For more information about this project, its availability
             and details, please get in touch with the 46Spaces team.
