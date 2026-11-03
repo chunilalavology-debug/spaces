@@ -7,6 +7,10 @@
     {
       "source": "/uploads/:path*",
       "destination": "https://server-theta-nine-16.vercel.app/uploads/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
