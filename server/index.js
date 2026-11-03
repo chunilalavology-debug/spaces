@@ -994,9 +994,13 @@ app.post('/api/admin/uploads', requireAdmin, async (req, res, next) => {
 
 app.get('/api/admin/media', requireAdmin, async (_req, res, next) => {
   try {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true })
+    let files = []
 
-    const files = await fs.readdir(UPLOAD_DIR)
+    try {
+      files = await fs.readdir(UPLOAD_DIR)
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
 
     res.json(
       files
