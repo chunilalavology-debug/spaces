@@ -1,6 +1,8 @@
 
 import { UserRound, Eye, EyeOff } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import FormBuilder from '../components/admin/FormBuilder'
+import MenuEditor from '../components/admin/MenuEditor'
 import '../admin.css'
 
 const emptyBlog = {
@@ -36,25 +38,95 @@ const defaults = {
   maintenanceMode: false
 }
 
+let sessionCsrf = ''
+
+const CSRF_SKIP = ['/admin/login', '/admin/forgot-password', '/admin/reset-password']
+
+function readCsrfCookie() {
+  const match = document.cookie.match(/(?:^|;\s*)spaces_csrf=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
+function resolveCsrfToken() {
+  return sessionCsrf || readCsrfCookie()
+}
+
+function storeCsrfToken(token) {
+  if (token) sessionCsrf = token
+}
+
 async function api(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase()
+  const mutating = !['GET', 'HEAD', 'OPTIONS'].includes(method)
+  const skipCsrf =
+    options.skipCsrf ||
+    CSRF_SKIP.some((path) => url === path || url.startsWith(`${path}?`))
+
+  const headers = {
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    ...options.headers
+  }
+
+  if (mutating && !skipCsrf) {
+    const token = resolveCsrfToken()
+    if (token) headers['x-csrf-token'] = token
+  }
+
   const response = await fetch(`/api${url}`, {
     credentials: 'include',
     ...options,
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...options.headers
-    }
+    headers
   })
 
-  const data = response.status === 204
-    ? {}
-    : await response.json().catch(() => ({}))
+  const data =
+    response.status === 204
+      ? {}
+      : await response.json().catch(() => ({}))
 
   if (!response.ok) {
     throw new Error(data.message || 'Request failed')
   }
 
   return data
+}
+
+async function refreshCsrf() {
+  try {
+    const data = await api('/admin/csrf', { skipCsrf: true })
+    storeCsrfToken(data.csrfToken)
+    return data.csrfToken
+  } catch {
+    return resolveCsrfToken()
+  }
+}
+
+const defaultSmtp = {
+  host: '',
+  port: 587,
+  username: '',
+  passwordSet: false,
+  encryption: 'tls',
+  fromEmail: '',
+  fromName: '',
+  replyTo: '',
+  notificationsEnabled: false
+}
+
+const emptyProfile = {
+  name: '',
+  email: '',
+  phone: '',
+  additionalContact: '',
+  avatar: '',
+  username: ''
+}
+
+function isResetPasswordPath() {
+  return window.location.pathname.replace(/\/+$/, '') === '/admin/reset-password'
+}
+
+function resetTokenFromUrl() {
+  return new URLSearchParams(window.location.search).get('token') || ''
 }
 
 const dateLabel = value =>
@@ -70,12 +142,23 @@ export default function Admin() {
   const [authenticated, setAuthenticated] = useState(false)
   const [checking, setChecking] = useState(true)
 
- const [username, setUsername] = useState('')
-const [password, setPassword] = useState('')
-const [showPassword, setShowPassword] = useState(false)
+  const [loginId, setLoginId] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+  const [authScreen, setAuthScreen] = useState(() =>
+    isResetPasswordPath() ? 'reset' : 'login'
+  )
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotNotice, setForgotNotice] = useState('')
+  const [resetToken] = useState(() => resetTokenFromUrl())
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
 
   const [error, setError] = useState('')
   const [section, setSection] = useState('overview')
+  const [loadWarnings, setLoadWarnings] = useState([])
 
   const [blogs, setBlogs] = useState([])
   const [enquiries, setEnquiries] = useState([])
@@ -95,15 +178,73 @@ const [menus, setMenus] = useState({ header: [], footer: [] })
 const [forms, setForms] = useState([])
 const [selectedFormId, setSelectedFormId] = useState('')
   const [media, setMedia] = useState([])
-  const [profile, setProfile] = useState({ name: '', email: '', avatar: '' })
+  const [profile, setProfile] = useState(emptyProfile)
   const [profileMessage, setProfileMessage] = useState('')
+  const [smtp, setSmtp] = useState(defaultSmtp)
+  const [smtpPassword, setSmtpPassword] = useState('')
+  const [smtpTestEmail, setSmtpTestEmail] = useState('')
+  const [smtpMessage, setSmtpMessage] = useState('')
+  const [emailTemplates, setEmailTemplates] = useState([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [templateMessage, setTemplateMessage] = useState('')
+
+  function applySessionPayload(data) {
+    storeCsrfToken(data?.csrfToken)
+    const nextProfile = {
+      ...emptyProfile,
+      ...(data?.profile || {})
+    }
+    if (data?.username) nextProfile.username = data.username
+    setProfile(nextProfile)
+    setLoginId(data?.username || nextProfile.username || '')
+  }
 
   // Load dashboard data safely
   async function loadData() {
-    const [blogData, settingsData, enquiryData, projectData, menuData, formData, profileData, mediaData] = await Promise.all([
-      api('/admin/blogs'), api('/admin/settings'), api('/admin/enquiries'),
-      api('/admin/projects'), api('/menus'), api('/forms'), api('/admin/session'), api('/admin/media')
+    const labels = [
+      'blogs',
+      'settings',
+      'enquiries',
+      'projects',
+      'menus',
+      'forms',
+      'session',
+      'media',
+      'smtp',
+      'email-templates'
+    ]
+
+    const results = await Promise.allSettled([
+      api('/admin/blogs'),
+      api('/admin/settings'),
+      api('/admin/enquiries'),
+      api('/admin/projects'),
+      api('/menus'),
+      api('/forms'),
+      api('/admin/session'),
+      api('/admin/media'),
+      api('/admin/smtp'),
+      api('/admin/email-templates')
     ])
+
+    const warnings = []
+    const pick = (index, fallback) => {
+      const result = results[index]
+      if (result.status === 'fulfilled') return result.value
+      warnings.push(`${labels[index]}: ${result.reason?.message || 'failed'}`)
+      return fallback
+    }
+
+    const blogData = pick(0, [])
+    const settingsData = pick(1, {})
+    const enquiryData = pick(2, [])
+    const projectData = pick(3, [])
+    const menuData = pick(4, { header: [], footer: [] })
+    const formData = pick(5, [])
+    const profileData = pick(6, {})
+    const mediaData = pick(7, [])
+    const smtpData = pick(8, defaultSmtp)
+    const templatesData = pick(9, [])
 
     const safeBlogs = Array.isArray(blogData)
       ? blogData
@@ -128,31 +269,49 @@ const [selectedFormId, setSelectedFormId] = useState('')
     setEnquiries(safeEnquiries)
     setSettings({ ...defaults, ...safeSettings })
     setProjects(Array.isArray(projectData) ? projectData : [])
-setMenus({
-  header: Array.isArray(menuData?.header) ? menuData.header : [],
-  footer: Array.isArray(menuData?.footer) ? menuData.footer : []
-})
+    setMenus({
+      header: Array.isArray(menuData?.header) ? menuData.header : [],
+      footer: Array.isArray(menuData?.footer) ? menuData.footer : []
+    })
 
-const loadedForms = Array.isArray(formData)
-  ? formData
-  : Array.isArray(formData?.value)
-    ? formData.value
-    : []
+    const loadedForms = Array.isArray(formData)
+      ? formData
+      : Array.isArray(formData?.value)
+        ? formData.value
+        : []
 
-setForms(loadedForms)
-setSelectedFormId(loadedForms[0]?.id || '')
-    setProfile(profileData?.profile || { name: profileData?.username || '', email: '', avatar: '' })
+    setForms(loadedForms)
+    setSelectedFormId((current) => current || loadedForms[0]?.id || '')
+
+    if (profileData?.ok || profileData?.profile) {
+      applySessionPayload(profileData)
+    }
+
     setMedia(Array.isArray(mediaData) ? mediaData : [])
+    setSmtp({ ...defaultSmtp, ...(smtpData && typeof smtpData === 'object' ? smtpData : {}) })
+    setSmtpPassword('')
+
+    const templates = Array.isArray(templatesData) ? templatesData : []
+    setEmailTemplates(templates)
+    setSelectedTemplateId((current) => {
+      if (current && templates.some((t) => t.id === current)) return current
+      return templates[0]?.id || ''
+    })
+
+    setLoadWarnings(warnings)
   }
 
   // Check admin session
   useEffect(() => {
     api('/admin/session')
-      .then(() => {
+      .then((data) => {
+        applySessionPayload(data)
         setAuthenticated(true)
         return loadData()
       })
-      .catch(() => {})
+      .catch(async () => {
+        if (!resolveCsrfToken()) await refreshCsrf().catch(() => {})
+      })
       .finally(() => setChecking(false))
   }, [])
 
@@ -162,13 +321,74 @@ setSelectedFormId(loadedForms[0]?.id || '')
     setError('')
 
     try {
-      await api('/admin/login', {
+      const data = await api('/admin/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({
+          username: loginId,
+          password,
+          rememberMe
+        })
       })
 
+      applySessionPayload(data)
       setAuthenticated(true)
+      setAuthScreen('login')
       await loadData()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function submitForgotPassword(event) {
+    event.preventDefault()
+    setError('')
+    setForgotNotice('')
+
+    try {
+      const data = await api('/admin/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email: forgotEmail })
+      })
+      setForgotNotice(
+        data.message ||
+          'If that email matches an admin account, a reset link has been sent.'
+      )
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function submitResetPassword(event) {
+    event.preventDefault()
+    setError('')
+
+    if (resetPassword.length < 12) {
+      setError('Choose a new password with at least 12 characters.')
+      return
+    }
+
+    if (resetPassword !== resetConfirm) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    if (!resetToken) {
+      setError('Reset token is missing from the link. Request a new reset email.')
+      return
+    }
+
+    try {
+      const data = await api('/admin/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token: resetToken, newPassword: resetPassword })
+      })
+      setForgotNotice(data.message || 'Password updated. You can sign in now.')
+      setResetPassword('')
+      setResetConfirm('')
+      setAuthScreen('login')
+      if (window.history.replaceState) {
+        window.history.replaceState({}, '', '/admin')
+      }
     } catch (e) {
       setError(e.message)
     }
@@ -178,10 +398,13 @@ setSelectedFormId(loadedForms[0]?.id || '')
   async function logout() {
     try {
       await api('/admin/logout', { method: 'POST' })
+      sessionCsrf = ''
       setAuthenticated(false)
       setPassword('')
       setSection('overview')
       setEditor(null)
+      setProjectEditor(null)
+      setNotice('')
     } catch (e) {
       setError(e.message)
     }
@@ -371,9 +594,151 @@ async function saveForms(event) {
   }
 }
   async function saveProfile(event) {
-    event.preventDefault(); setSaving(true); setError(''); setProfileMessage('')
-    try { const saved = await api('/admin/profile', { method: 'PUT', body: JSON.stringify(profile) }); setProfile(saved); setUsername(saved.name); setProfileMessage('Profile updated successfully.') }
-    catch (e) { setError(e.message) } finally { setSaving(false) }
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    setProfileMessage('')
+
+    try {
+      const saved = await api('/admin/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profile)
+      })
+      applySessionPayload({ profile: saved, username: profile.username || loginId })
+      setProfileMessage('Profile updated successfully.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveSmtp(event) {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    setSmtpMessage('')
+
+    try {
+      const payload = {
+        host: smtp.host,
+        port: Number(smtp.port) || 587,
+        username: smtp.username,
+        encryption: smtp.encryption,
+        fromEmail: smtp.fromEmail,
+        fromName: smtp.fromName,
+        replyTo: smtp.replyTo,
+        notificationsEnabled: smtp.notificationsEnabled
+      }
+      if (smtpPassword) payload.password = smtpPassword
+
+      const saved = await api('/admin/smtp', {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      })
+      setSmtp({ ...defaultSmtp, ...saved })
+      setSmtpPassword('')
+      setSmtpMessage('SMTP settings saved.')
+      setNotice('SMTP settings updated.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function testSmtpConnection() {
+    setSaving(true)
+    setError('')
+    setSmtpMessage('')
+
+    try {
+      const data = await api('/admin/smtp/test', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: smtpTestEmail.trim() || undefined
+        })
+      })
+      setSmtpMessage(data.message || 'SMTP connection verified.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveEmailTemplate(event) {
+    event.preventDefault()
+    const template = emailTemplates.find((t) => t.id === selectedTemplateId)
+    if (!template) return
+
+    setSaving(true)
+    setError('')
+    setTemplateMessage('')
+
+    try {
+      const saved = await api(`/admin/email-templates/${template.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: template.name,
+          subject: template.subject,
+          bodyHtml: template.bodyHtml,
+          enabled: template.enabled
+        })
+      })
+      setEmailTemplates((list) =>
+        list.map((item) => (item.id === saved.id ? saved : item))
+      )
+      setTemplateMessage('Template saved.')
+      setNotice('Email template updated.')
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function updateSelectedTemplate(patch) {
+    setEmailTemplates((list) =>
+      list.map((item) =>
+        item.id === selectedTemplateId ? { ...item, ...patch } : item
+      )
+    )
+  }
+
+  async function deleteEnquiry(item) {
+    if (
+      !window.confirm(
+        `Delete enquiry from "${item.name || 'visitor'}"? This cannot be undone.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      await api(`/admin/enquiries/${item.id}`, { method: 'DELETE' })
+      setEnquiries((list) => list.filter((entry) => entry.id !== item.id))
+      setNotice('Enquiry deleted.')
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  async function deleteMediaItem(item) {
+    const label = item.filename || item.name || item.id
+    if (
+      !window.confirm(`Delete "${label}" from the media library? This cannot be undone.`)
+    ) {
+      return
+    }
+
+    try {
+      await api(`/admin/media/${item.id}`, { method: 'DELETE' })
+      setMedia((list) => list.filter((entry) => entry.id !== item.id))
+      setNotice('Media deleted.')
+    } catch (e) {
+      setError(e.message)
+    }
   }
   async function uploadImage(event, target) {
     const file = event.target.files?.[0]; if (!file) return
@@ -385,7 +750,16 @@ async function saveForms(event) {
         if (target === 'logoUrl' || target === 'faviconUrl') setSettings(v => ({ ...v, [target]: uploaded.url }))
         if (target === 'avatar') setProfile(v => ({ ...v, avatar: uploaded.url }))
         if (target === 'projectCoverImage') setProjectEditor(v => ({ ...v, coverImage: uploaded.url }))
-        setMedia(v => [{ name: uploaded.filename, url: uploaded.url }, ...v]); setNotice('Image uploaded.')
+        setMedia((v) => [
+          {
+            id: uploaded.id || uploaded.filename,
+            filename: uploaded.filename,
+            name: uploaded.filename,
+            url: uploaded.url
+          },
+          ...v
+        ])
+        setNotice('Image uploaded.')
       } catch (e) { setError(e.message) }
     }
     reader.readAsDataURL(file)
@@ -412,6 +786,11 @@ async function saveForms(event) {
     [blogs, search]
   )
 
+  const selectedTemplate = useMemo(
+    () => emailTemplates.find((t) => t.id === selectedTemplateId) || null,
+    [emailTemplates, selectedTemplateId]
+  )
+
   if (checking) {
     return (
       <div className="admin-loading">
@@ -420,11 +799,34 @@ async function saveForms(event) {
     )
   }
 
-  // Login screen
+  // Login / forgot / reset screens
   if (!authenticated) {
+  const authTitle =
+    authScreen === 'reset'
+      ? 'Set a new password'
+      : authScreen === 'forgot'
+        ? 'Forgot password'
+        : 'Welcome back.'
+
+  const authSubtitle =
+    authScreen === 'reset'
+      ? 'Choose a strong password with at least 12 characters.'
+      : authScreen === 'forgot'
+        ? 'Enter the email on your admin account and we will send a reset link.'
+        : 'Sign in to manage your website.'
+
     return (
       <main className="admin-login-shell">
-        <form className="admin-login-card" onSubmit={login}>
+        <form
+          className="admin-login-card"
+          onSubmit={
+            authScreen === 'reset'
+              ? submitResetPassword
+              : authScreen === 'forgot'
+                ? submitForgotPassword
+                : login
+          }
+        >
           <a
             className="admin-login-logo"
             href="/"
@@ -433,70 +835,177 @@ async function saveForms(event) {
             <img src="/assets/logo.png" alt="46Spaces" />
           </a>
 
-          <p className="admin-eyebrow">
-            CONTENT MANAGEMENT
-          </p>
+          <p className="admin-eyebrow">CONTENT MANAGEMENT</p>
 
-          <h1>Welcome back.</h1>
+          <h1>{authTitle}</h1>
 
-          <p className="admin-muted">
-            Sign in to manage your website.
-          </p>
+          <p className="admin-muted">{authSubtitle}</p>
 
-          {error && (
-            <div className="admin-alert">{error}</div>
+          {error && <div className="admin-alert">{error}</div>}
+          {forgotNotice && (
+            <div className="admin-notice" style={{ marginBottom: 16 }}>
+              {forgotNotice}
+            </div>
           )}
 
-          <label>
-            Username
-            <input
-              autoComplete="username"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              required
-            />
-          </label>
+          {authScreen === 'login' && (
+            <>
+              <label>
+                Username or email
+                <input
+                  autoComplete="username"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  required
+                />
+              </label>
 
-<label>
-  Password
+              <label>
+                Password
+                <div className="admin-password-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="admin-password-toggle"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                  </button>
+                </div>
+              </label>
 
-  <div style={{ position: 'relative' }}>
-    <input
-      type={showPassword ? 'text' : 'password'}
-      autoComplete="current-password"
-      value={password}
-      onChange={e => setPassword(e.target.value)}
-      required
-      style={{ paddingRight: '48px', width: '100%' }}
-    />
+              <label className="admin-login-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                <span>Remember me on this device</span>
+              </label>
 
-    <button
-      type="button"
-      onClick={() => setShowPassword(prev => !prev)}
-      aria-label={showPassword ? 'Hide password' : 'Show password'}
-      title={showPassword ? 'Hide password' : 'Show password'}
-      style={{
-        position: 'absolute',
-        right: '12px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        background: 'transparent',
-        border: 'none',
-        padding: '5px',
-        cursor: 'pointer',
-        color: '#555',
-        display: 'flex',
-        alignItems: 'center'
-      }}
-    >
-      {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-    </button>
-  </div>
-</label>
+              <button className="admin-primary" type="submit">
+                Sign in <span>→</span>
+              </button>
 
-          <button className="admin-primary" type="submit">
-            Sign in <span>→</span>
-          </button>
+              <button
+                type="button"
+                className="admin-text-button admin-forgot-trigger"
+                onClick={() => {
+                  setError('')
+                  setForgotNotice('')
+                  setAuthScreen('forgot')
+                }}
+              >
+                Forgot password?
+              </button>
+            </>
+          )}
+
+          {authScreen === 'forgot' && (
+            <>
+              <label>
+                Admin email
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+              </label>
+
+              <button className="admin-primary" type="submit">
+                Send reset link <span>→</span>
+              </button>
+
+              <button
+                type="button"
+                className="admin-text-button admin-forgot-trigger"
+                onClick={() => {
+                  setError('')
+                  setForgotNotice('')
+                  setAuthScreen('login')
+                }}
+              >
+                ← Back to sign in
+              </button>
+            </>
+          )}
+
+          {authScreen === 'reset' && (
+            <>
+              {!resetToken && (
+                <div className="admin-alert">
+                  This reset link is invalid. Request a new link from the sign-in page.
+                </div>
+              )}
+
+              <label>
+                New password
+                <div className="admin-password-wrap">
+                  <input
+                    type={showResetPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    minLength={12}
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    required
+                    disabled={!resetToken}
+                  />
+                  <button
+                    type="button"
+                    className="admin-password-toggle"
+                    onClick={() => setShowResetPassword((prev) => !prev)}
+                    aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showResetPassword ? <EyeOff size={19} /> : <Eye size={19} />}
+                  </button>
+                </div>
+              </label>
+
+              <label>
+                Confirm new password
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={12}
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  required
+                  disabled={!resetToken}
+                />
+              </label>
+
+              <button
+                className="admin-primary"
+                type="submit"
+                disabled={!resetToken}
+              >
+                Update password <span>→</span>
+              </button>
+
+              <button
+                type="button"
+                className="admin-text-button admin-forgot-trigger"
+                onClick={() => {
+                  setError('')
+                  setAuthScreen('login')
+                  if (window.history.replaceState) {
+                    window.history.replaceState({}, '', '/admin')
+                  }
+                }}
+              >
+                ← Back to sign in
+              </button>
+            </>
+          )}
 
           <a className="admin-back-link" href="/">
             ← Back to website
@@ -533,6 +1042,8 @@ async function saveForms(event) {
             ['forms', '▧', 'Form builder'],
             ['media', '▣', 'Media library'],
             ['settings', '⚙', 'Website settings'],
+            ['smtp', '✉', 'Email / SMTP'],
+            ['email-templates', '◇', 'Email templates'],
             ['profile', '◉', 'Admin profile'],
             ['enquiries', '✉', 'Enquiries']
           ].map(([id, icon, label]) => (
@@ -558,7 +1069,7 @@ async function saveForms(event) {
           <div className="admin-user-avatar">
             {profile.avatar ? <img src={profile.avatar} alt="" /> : <UserRound size={21} strokeWidth={1.7} />}
           </div>
-          <div className="admin-user-meta"><strong>{profile.name || username || 'Admin'}</strong><small>{profile.email || 'Administrator'}</small></div>
+          <div className="admin-user-meta"><strong>{profile.name || profile.username || loginId || 'Admin'}</strong><small>{profile.email || 'Administrator'}</small></div>
 
           <button
             type="button"
@@ -592,6 +1103,8 @@ async function saveForms(event) {
                     menus: 'Navigation menus',
                     forms: 'Form builder',
                     media: 'Media library',
+                    smtp: 'Email / SMTP',
+                    'email-templates': 'Email templates',
                     profile: 'Admin profile',
                     enquiries: 'Enquiries'
                   }[section]}
@@ -628,6 +1141,12 @@ async function saveForms(event) {
             </div>
           )}
 
+          {!!loadWarnings.length && section === 'overview' && (
+            <div className="admin-alert admin-alert-soft">
+              Some dashboard data could not be loaded: {loadWarnings.join(' · ')}
+            </div>
+          )}
+
           {/* OVERVIEW */}
           {section === 'overview' && !editor && (
             <>
@@ -638,7 +1157,11 @@ async function saveForms(event) {
                   </p>
 
                   <h1>
-                    Good to see you{username ? `, ${username}` : ''}.
+                    Good to see you
+                    {profile.name || profile.username
+                      ? `, ${profile.name || profile.username}`
+                      : ''}
+                    .
                   </h1>
 
                   <p className="admin-muted">
@@ -1264,64 +1787,16 @@ async function saveForms(event) {
                 </p>
               </div>
 
-              {/* Password panel - no nested form */}
               <div className="admin-panel">
-                <h2>Change admin password</h2>
-
-                <p className="admin-muted">
-                  Use a unique password with at least 12 characters.
-                </p>
-
-                <label>
-                  Current password
-                  <input
-                    type="password"
-                    autoComplete="current-password"
-                    value={currentPassword}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') e.preventDefault()
-                    }}
-                    onChange={e =>
-                      setCurrentPassword(e.target.value)
-                    }
-                  />
-                </label>
-
-                <label>
-                  New password
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    minLength={12}
-                    value={newPassword}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') e.preventDefault()
-                    }}
-                    onChange={e =>
-                      setNewPassword(e.target.value)
-                    }
-                  />
-                </label>
-
-                {passwordMessage && (
-                  <p className="admin-password-success">
-                    {passwordMessage}
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  className="admin-secondary"
-                  disabled={
-                    saving ||
-                    !currentPassword ||
-                    newPassword.length < 12
-                  }
-                  onClick={changePassword}
-                  style={{ marginTop: 16 }}
-                >
-                  {saving ? 'Updating…' : 'Update password'}
-                </button>
+                <PasswordChangePanel
+                  currentPassword={currentPassword}
+                  setCurrentPassword={setCurrentPassword}
+                  newPassword={newPassword}
+                  setNewPassword={setNewPassword}
+                  passwordMessage={passwordMessage}
+                  saving={saving}
+                  onSubmit={changePassword}
+                />
               </div>
 
               <div className="admin-settings-save">
@@ -1396,9 +1871,403 @@ async function saveForms(event) {
   </form>
 )}
 
-          {section === 'media' && <div className="admin-panel"><p className="admin-eyebrow">ASSET MANAGER</p><h1>Media library</h1><p className="admin-muted">Uploaded images can be reused in projects, branding, blogs and forms.</p><label>Upload image<input type="file" accept="image/*" onChange={e => uploadImage(e, 'media')} /></label><div className="admin-media-grid">{media.map(item => <div key={item.name}><img src={item.url} alt={item.name}/><small>{item.name}</small><button type="button" onClick={() => navigator.clipboard?.writeText(item.url)}>Copy URL</button></div>)}</div>{!media.length && <p className="admin-empty">No uploaded media yet.</p>}</div>}
+          {section === 'smtp' && (
+            <form className="admin-smtp-layout" onSubmit={saveSmtp}>
+              <div className="admin-page-intro">
+                <div>
+                  <p className="admin-eyebrow">EMAIL DELIVERY</p>
+                  <h1>SMTP settings</h1>
+                  <p className="admin-muted">
+                    Configure outgoing mail for enquiry notifications and password resets.
+                  </p>
+                </div>
+              </div>
 
-          {section === 'profile' && <form className="admin-panel" onSubmit={saveProfile}><p className="admin-eyebrow">ACCOUNT</p><h1>Admin profile</h1><p className="admin-muted">Update the account name and email shown in the admin workspace. Password can be changed in Website Settings.</p><div className="admin-profile-avatar">{profile.avatar ? <img src={profile.avatar} alt="Admin profile"/> : <UserRound/>}</div><label>Profile picture<input type="file" accept="image/*" onChange={e => uploadImage(e, 'avatar')}/></label><div className="admin-form-grid"><label>Admin name<input value={profile.name || ''} onChange={e => setProfile(v => ({...v,name:e.target.value}))} required/></label><label>Admin email<input type="email" value={profile.email || ''} onChange={e => setProfile(v => ({...v,email:e.target.value}))} required/></label></div>{profileMessage && <p className="admin-password-success">{profileMessage}</p>}<button className="admin-primary" disabled={saving}>Save profile</button></form>}
+              <div className="admin-panel">
+                <div className="admin-form-grid">
+                  <label>
+                    SMTP host
+                    <input
+                      value={smtp.host}
+                      onChange={(e) => setSmtp((v) => ({ ...v, host: e.target.value }))}
+                      placeholder="smtp.example.com"
+                    />
+                  </label>
+                  <label>
+                    Port
+                    <input
+                      type="number"
+                      min="1"
+                      max="65535"
+                      value={smtp.port}
+                      onChange={(e) =>
+                        setSmtp((v) => ({ ...v, port: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Username
+                    <input
+                      value={smtp.username}
+                      onChange={(e) =>
+                        setSmtp((v) => ({ ...v, username: e.target.value }))
+                      }
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label>
+                    Password
+                    <input
+                      type="password"
+                      value={smtpPassword}
+                      onChange={(e) => setSmtpPassword(e.target.value)}
+                      placeholder={
+                        smtp.passwordSet
+                          ? 'Leave blank to keep current password'
+                          : 'Enter SMTP password'
+                      }
+                      autoComplete="new-password"
+                    />
+                    {smtp.passwordSet && (
+                      <small className="admin-field-hint">
+                        A password is stored on the server. Enter a new value only to replace it.
+                      </small>
+                    )}
+                  </label>
+                  <label>
+                    Encryption
+                    <select
+                      value={smtp.encryption}
+                      onChange={(e) =>
+                        setSmtp((v) => ({ ...v, encryption: e.target.value }))
+                      }
+                    >
+                      <option value="tls">TLS</option>
+                      <option value="ssl">SSL</option>
+                      <option value="none">None</option>
+                    </select>
+                  </label>
+                  <label>
+                    From email
+                    <input
+                      type="email"
+                      value={smtp.fromEmail}
+                      onChange={(e) =>
+                        setSmtp((v) => ({ ...v, fromEmail: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    From name
+                    <input
+                      value={smtp.fromName}
+                      onChange={(e) =>
+                        setSmtp((v) => ({ ...v, fromName: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    Reply-to email
+                    <input
+                      type="email"
+                      value={smtp.replyTo}
+                      onChange={(e) =>
+                        setSmtp((v) => ({ ...v, replyTo: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <Toggle
+                  label="Enable email notifications"
+                  checked={smtp.notificationsEnabled}
+                  onChange={(v) =>
+                    setSmtp((s) => ({ ...s, notificationsEnabled: v }))
+                  }
+                />
+
+                {smtpMessage && (
+                  <p className="admin-password-success">{smtpMessage}</p>
+                )}
+
+                <div className="admin-row-actions" style={{ marginTop: 20 }}>
+                  <button className="admin-primary" type="submit" disabled={saving}>
+                    {saving ? 'Saving…' : 'Save SMTP settings'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="admin-panel">
+                <h2>Test connection</h2>
+                <p className="admin-muted">
+                  Verify SMTP credentials. Optionally send a test message to an inbox.
+                </p>
+                <label>
+                  Test recipient (optional)
+                  <input
+                    type="email"
+                    value={smtpTestEmail}
+                    onChange={(e) => setSmtpTestEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="admin-secondary"
+                  disabled={saving}
+                  onClick={testSmtpConnection}
+                >
+                  {saving ? 'Testing…' : 'Test connection'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {section === 'email-templates' && (
+            <form className="admin-templates-layout" onSubmit={saveEmailTemplate}>
+              <div className="admin-page-intro">
+                <div>
+                  <p className="admin-eyebrow">MESSAGING</p>
+                  <h1>Email templates</h1>
+                  <p className="admin-muted">
+                    Edit notification copy sent by the website. Use placeholders like{' '}
+                    <code>{'{{name}}'}</code> and <code>{'{{fieldsTable}}'}</code> where noted.
+                  </p>
+                </div>
+              </div>
+
+              <div className="admin-templates-grid">
+                <div className="admin-panel admin-template-list">
+                  <h2>Templates</h2>
+                  {emailTemplates.length ? (
+                    <ul className="admin-template-menu">
+                      {emailTemplates.map((template) => (
+                        <li key={template.id}>
+                          <button
+                            type="button"
+                            className={
+                              selectedTemplateId === template.id ? 'is-active' : ''
+                            }
+                            onClick={() => {
+                              setSelectedTemplateId(template.id)
+                              setTemplateMessage('')
+                            }}
+                          >
+                            <strong>{template.name}</strong>
+                            <small>{template.enabled ? 'Enabled' : 'Disabled'}</small>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="admin-empty">No templates found.</p>
+                  )}
+                </div>
+
+                <div className="admin-panel">
+                  {selectedTemplate ? (
+                    <>
+                      <label>
+                        Template name
+                        <input
+                          value={selectedTemplate.name || ''}
+                          onChange={(e) =>
+                            updateSelectedTemplate({ name: e.target.value })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Email subject
+                        <input
+                          value={selectedTemplate.subject || ''}
+                          onChange={(e) =>
+                            updateSelectedTemplate({ subject: e.target.value })
+                          }
+                          required
+                        />
+                      </label>
+                      <label>
+                        Email body
+                        <textarea
+                          className="admin-template-body"
+                          rows="14"
+                          value={selectedTemplate.bodyHtml || ''}
+                          onChange={(e) =>
+                            updateSelectedTemplate({ bodyHtml: e.target.value })
+                          }
+                          required
+                        />
+                        <small className="admin-field-hint">
+                          HTML is supported. Common placeholders include{' '}
+                          <code>{'{{name}}'}</code>, <code>{'{{resetUrl}}'}</code>, and{' '}
+                          <code>{'{{fieldsTable}}'}</code> for form submissions.
+                        </small>
+                      </label>
+                      <Toggle
+                        label="Template enabled"
+                        checked={selectedTemplate.enabled}
+                        onChange={(v) => updateSelectedTemplate({ enabled: v })}
+                      />
+                      {templateMessage && (
+                        <p className="admin-password-success">{templateMessage}</p>
+                      )}
+                      <button
+                        className="admin-primary"
+                        type="submit"
+                        disabled={saving}
+                        style={{ marginTop: 16 }}
+                      >
+                        {saving ? 'Saving…' : 'Save template'}
+                      </button>
+                    </>
+                  ) : (
+                    <p className="admin-empty">Select a template to edit.</p>
+                  )}
+                </div>
+              </div>
+            </form>
+          )}
+
+          {section === 'media' && (
+            <div className="admin-panel">
+              <p className="admin-eyebrow">ASSET MANAGER</p>
+              <h1>Media library</h1>
+              <p className="admin-muted">
+                Uploaded images can be reused in projects, branding, blogs and forms.
+              </p>
+              <label>
+                Upload image
+                <input type="file" accept="image/*" onChange={(e) => uploadImage(e, 'media')} />
+              </label>
+              <div className="admin-media-grid">
+                {media.map((item) => (
+                  <div key={item.id || item.filename || item.name}>
+                    <img
+                      src={item.url}
+                      alt={item.filename || item.name || 'Media'}
+                    />
+                    <small>{item.filename || item.name}</small>
+                    <div className="admin-row-actions">
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(item.url)}
+                      >
+                        Copy URL
+                      </button>
+                      <button type="button" onClick={() => deleteMediaItem(item)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {!media.length && (
+                <p className="admin-empty">No uploaded media yet.</p>
+              )}
+            </div>
+          )}
+
+          {section === 'profile' && (
+            <>
+              <form className="admin-panel" onSubmit={saveProfile}>
+                <p className="admin-eyebrow">ACCOUNT</p>
+                <h1>Admin profile</h1>
+                <p className="admin-muted">
+                  Update your sign-in identity, contact details, and avatar.
+                </p>
+                <div className="admin-profile-avatar">
+                  {profile.avatar ? (
+                    <img src={profile.avatar} alt="Admin profile" />
+                  ) : (
+                    <UserRound />
+                  )}
+                </div>
+                <label>
+                  Profile picture
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => uploadImage(e, 'avatar')}
+                  />
+                </label>
+                <div className="admin-form-grid">
+                  <label>
+                    Full name
+                    <input
+                      value={profile.name || ''}
+                      onChange={(e) =>
+                        setProfile((v) => ({ ...v, name: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Username
+                    <input
+                      value={profile.username || ''}
+                      onChange={(e) =>
+                        setProfile((v) => ({ ...v, username: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Email
+                    <input
+                      type="email"
+                      value={profile.email || ''}
+                      onChange={(e) =>
+                        setProfile((v) => ({ ...v, email: e.target.value }))
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Phone
+                    <input
+                      type="tel"
+                      value={profile.phone || ''}
+                      onChange={(e) =>
+                        setProfile((v) => ({ ...v, phone: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+                <label>
+                  Additional contact
+                  <textarea
+                    rows="2"
+                    value={profile.additionalContact || ''}
+                    onChange={(e) =>
+                      setProfile((v) => ({
+                        ...v,
+                        additionalContact: e.target.value
+                      }))
+                    }
+                    placeholder="Secondary email, messaging handle, etc."
+                  />
+                </label>
+                {profileMessage && (
+                  <p className="admin-password-success">{profileMessage}</p>
+                )}
+                <button className="admin-primary" type="submit" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save profile'}
+                </button>
+              </form>
+
+              <div className="admin-panel" style={{ marginTop: 20 }}>
+                <PasswordChangePanel
+                  currentPassword={currentPassword}
+                  setCurrentPassword={setCurrentPassword}
+                  newPassword={newPassword}
+                  setNewPassword={setNewPassword}
+                  passwordMessage={passwordMessage}
+                  saving={saving}
+                  onSubmit={changePassword}
+                />
+              </div>
+            </>
+          )}
 
           {/* ENQUIRIES */}
           {section === 'enquiries' && (
@@ -1445,6 +2314,15 @@ async function saveForms(event) {
                               ))}
                           </div>
                         )}
+
+                        <div className="admin-row-actions">
+                          <button
+                            type="button"
+                            onClick={() => deleteEnquiry(item)}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </article>
                     ))
                   ) : (
@@ -1536,6 +2414,66 @@ function SettingField({ label, value, onChange }) {
         onChange={e => onChange(e.target.value)}
       />
     </label>
+  )
+}
+
+function PasswordChangePanel({
+  currentPassword,
+  setCurrentPassword,
+  newPassword,
+  setNewPassword,
+  passwordMessage,
+  saving,
+  onSubmit
+}) {
+  return (
+    <>
+      <h2>Change admin password</h2>
+      <p className="admin-muted">
+        Use a unique password with at least 12 characters.
+      </p>
+
+      <label>
+        Current password
+        <input
+          type="password"
+          autoComplete="current-password"
+          value={currentPassword}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.preventDefault()
+          }}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+        />
+      </label>
+
+      <label>
+        New password
+        <input
+          type="password"
+          autoComplete="new-password"
+          minLength={12}
+          value={newPassword}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.preventDefault()
+          }}
+          onChange={(e) => setNewPassword(e.target.value)}
+        />
+      </label>
+
+      {passwordMessage && (
+        <p className="admin-password-success">{passwordMessage}</p>
+      )}
+
+      <button
+        type="button"
+        className="admin-secondary"
+        disabled={saving || !currentPassword || newPassword.length < 12}
+        onClick={onSubmit}
+        style={{ marginTop: 16 }}
+      >
+        {saving ? 'Updating…' : 'Update password'}
+      </button>
+    </>
   )
 }
 

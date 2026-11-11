@@ -7,7 +7,7 @@ const STATS = [
   { value: '03', label: 'Move forward' }
 ]
 
-export default function AboutStage() {
+export default function AboutStage({ embedded = false }) {
   const rootRef = useRef(null)
   const sceneRef = useRef(null)
   const floatRef = useRef(null)
@@ -119,11 +119,14 @@ export default function AboutStage() {
     }
   }, [])
 
+  const Tag = embedded ? 'div' : 'section'
+  const Heading = embedded ? 'h2' : 'h1'
+
   return (
-    <section className="about-visual" ref={rootRef}>
+    <Tag className={`about-visual${embedded ? ' about-visual--embed' : ''}`} ref={rootRef}>
       <div className="container about-visual-head">
         <p className="eyebrow about-visual-kicker">About — 01</p>
-        <h1 className="section-heading about-visual-title">Land, seen as a living space.</h1>
+        <Heading className="section-heading about-visual-title">Land, seen as a living space.</Heading>
         <p className="body-copy about-visual-lede">
           A dummy 3D model of a considered home — the kind of place we look for in land. Move your pointer to tilt the model. Replace this render with a real project visual later.
         </p>
@@ -155,6 +158,6 @@ export default function AboutStage() {
           <div className="about-ground-shadow" ref={shadowRef} aria-hidden="true" />
         </div>
       </div>
-    </section>
+    </Tag>
   )
 }

@@ -2,39 +2,7 @@ import AboutStage from '../components/AboutStage.jsx'
 import { Link, useRouter } from '../lib/router.jsx'
 import { ArrowIcon } from '../components/Icons.jsx'
 import useReveal from '../hooks/useReveal.js'
-
-const VALUES = [
-  {
-    number: '01',
-    title: 'Context first',
-    copy: 'Every parcel sits in a neighbourhood, a landscape and a set of relationships. We start there, not with a generic template.'
-  },
-  {
-    number: '02',
-    title: 'Right people, right time',
-    copy: 'Good land needs aligned owners, buyers and advisors. We spend as much time on the conversation as on the site itself.'
-  },
-  {
-    number: '03',
-    title: 'Quiet confidence',
-    copy: 'We prefer clear next steps over noise. The work should feel considered, even when the opportunity is moving quickly.'
-  }
-]
-
-const NOTES = [
-  {
-    title: 'Who we are',
-    copy: '46Spaces is an independent studio working at the meeting point of land, ideas and possibility. Dummy copy for now — replace with the real company story.'
-  },
-  {
-    title: 'Where we work',
-    copy: 'Our current focus is North India, with selected opportunities reviewed on their own merit. Locations and market notes will be added here.'
-  },
-  {
-    title: 'How we think',
-    copy: 'We look past boundaries and square footage. A place has a past, a present and a future that can be shaped with the right partners.'
-  }
-]
+import { ABOUT_NOTES, ABOUT_VALUES } from '../lib/aboutContent.js'
 
 export default function About() {
   const { path } = useRouter()
@@ -65,7 +33,7 @@ export default function About() {
             <h2 className="section-heading">Three ideas that shape the work.</h2>
           </div>
           <div className="page-cards">
-            {VALUES.map((item) => (
+            {ABOUT_VALUES.map((item) => (
               <article className="page-card reveal" key={item.number}>
                 <span className="approach-number">{item.number}</span>
                 <h3 className="form-title">{item.title}</h3>
@@ -78,7 +46,7 @@ export default function About() {
 
       <section className="section">
         <div className="container notes-grid">
-          {NOTES.map((note) => (
+          {ABOUT_NOTES.map((note) => (
             <article className="reveal" key={note.title}>
               <p className="eyebrow">{note.title}</p>
               <p className="body-copy">{note.copy}</p>

@@ -63,17 +63,18 @@ async function main() {
     create: {
       id: 'main',
       header: [
-        { id: 'home', label: 'Home', url: '/' },
-        { id: 'about', label: 'About', url: '/about' },
-        { id: 'projects', label: 'Projects', url: '/projects' },
+        { id: 'home', label: 'Home', url: '/#home' },
+        { id: 'about', label: 'About', url: '/#about' },
+        { id: 'projects', label: 'Projects', url: '/#projects' },
         { id: 'journal', label: 'Journal', url: '/#blogs' },
-        { id: 'opportunities', label: 'Opportunities', url: '/opportunities' },
-        { id: 'contact', label: 'Contact', url: '/contact' }
+        { id: 'opportunities', label: 'Opportunities', url: '/#opportunities' },
+        { id: 'approach', label: 'Approach', url: '/#approach' },
+        { id: 'contact', label: 'Contact', url: '/#contact' }
       ],
       footer: [
-        { id: 'about', label: 'About', url: '/about' },
-        { id: 'projects', label: 'Projects', url: '/projects' },
-        { id: 'contact', label: 'Contact', url: '/contact' }
+        { id: 'about', label: 'About', url: '/#about' },
+        { id: 'projects', label: 'Projects', url: '/#projects' },
+        { id: 'contact', label: 'Contact', url: '/#contact' }
       ]
     }
   })

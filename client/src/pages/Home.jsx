@@ -1,10 +1,16 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import AboutStage from '../components/AboutStage.jsx'
 import EnquiryForm from '../components/EnquiryForm.jsx'
 import { ArrowIcon, DownArrowIcon } from '../components/Icons.jsx'
-import { Link } from '../lib/router.jsx'
+import { ABOUT_NOTES, ABOUT_VALUES } from '../lib/aboutContent.js'
+import {
+  Link,
+  syncHomeSection,
+  useRouter
+} from '../lib/router.jsx'
 import { PROJECTS } from './projectData.js'
 
 const FILTERS = [
@@ -24,11 +30,25 @@ const SECTIONS = [
   'contact'
 ]
 
+const SECTION_LABELS = {
+  home: 'Home',
+  about: 'About',
+  projects: 'Projects',
+  blogs: 'Journal',
+  opportunities: 'Opportunities',
+  approach: 'Approach',
+  contact: 'Contact'
+}
+
 export default function Home() {
+  const { scrollToSection, hash } = useRouter()
   const [filter, setFilter] = useState('all')
   const [activeSection, setActiveSection] = useState('home')
+  const [slideIndex, setSlideIndex] = useState(0)
   const [blogs, setBlogs] = useState([])
   const [cmsProjects, setCmsProjects] = useState(null)
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const sliderRef = useRef(null)
 
   const [siteSettings, setSiteSettings] = useState({
     blogSectionTitle: 'Notes & perspectives',
@@ -38,9 +58,24 @@ export default function Home() {
   })
 
   useEffect(() => {
-    fetch('/api/projects').then(r => r.ok ? r.json() : []).then(rows => {
-      if (Array.isArray(rows)) setCmsProjects(rows.map(p => ({...p, image:p.coverImage || p.image, alt:p.title, label:p.statusLabel || p.status || 'Project'})))
-    }).catch(() => {})
+    fetch('/api/projects')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => {
+        if (Array.isArray(rows)) {
+          setCmsProjects(
+            rows.map((p) => ({
+              ...p,
+              image: p.coverImage || p.image,
+              alt: p.title,
+              label: p.statusLabel || p.status || 'Project'
+            }))
+          )
+        } else {
+          setCmsProjects([])
+        }
+      })
+      .catch(() => setCmsProjects([]))
+      .finally(() => setProjectsLoading(false))
     fetch('/api/blogs')
       .then((response) => response.ok ? response.json() : [])
       .then((data) => {
@@ -166,7 +201,9 @@ export default function Home() {
           end: 'bottom 48%',
           onToggle: (self) => {
             if (self.isActive) {
-              setActiveSection(section.dataset.section)
+              const id = section.dataset.section
+              setActiveSection(id)
+              syncHomeSection(id)
             }
           }
         })
@@ -183,9 +220,63 @@ export default function Home() {
     }
   }, [])
 
-  const visibleProjects = (cmsProjects || PROJECTS).filter(
+  const projectSource =
+    cmsProjects === null ? PROJECTS : cmsProjects.length ? cmsProjects : PROJECTS
+
+  const visibleProjects = projectSource.filter(
     (project) => filter === 'all' || project.status === filter
   )
+
+  const [slidesPerView, setSlidesPerView] = useState(2)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 700px)')
+    const update = () => setSlidesPerView(mq.matches ? 1 : 2)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
+  const maxSlide = Math.max(0, visibleProjects.length - slidesPerView)
+
+  function scrollSliderTo(index) {
+    const viewport = sliderRef.current
+    if (!viewport) return
+    const card = viewport.querySelector('.project-card--slide')
+    if (!card) return
+    const gap = 22
+    const step = card.getBoundingClientRect().width + gap
+    viewport.scrollTo({ left: index * step, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    setSlideIndex(0)
+    window.requestAnimationFrame(() => scrollSliderTo(0))
+  }, [filter, visibleProjects.length])
+
+  useEffect(() => {
+    setSlideIndex((index) => Math.min(index, maxSlide))
+  }, [maxSlide])
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => scrollSliderTo(slideIndex))
+  }, [slideIndex, slidesPerView])
+
+  function goPrev() {
+    setSlideIndex((index) => Math.max(0, index - 1))
+  }
+
+  function goNext() {
+    setSlideIndex((index) => Math.min(maxSlide, index + 1))
+  }
+
+  useEffect(() => {
+    if (hash) {
+      window.requestAnimationFrame(() => scrollToSection(hash))
+    }
+    // Deep-link scroll once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <>
@@ -194,15 +285,15 @@ export default function Home() {
           <span key={id} style={{ display: 'contents' }}>
             {index > 0 ? <span className="tracker-line" /> : null}
 
-            <a
-              className={`tracker-item ${
+            <button
+              type="button"
+              className={`tracker-dot ${
                 activeSection === id ? 'is-active' : ''
               }`}
-              href={`#${id}`}
-              aria-label={`Section ${String(index + 1).padStart(2, '0')}`}
-            >
-              {String(index + 1).padStart(2, '0')}
-            </a>
+              aria-label={SECTION_LABELS[id] || id}
+              aria-current={activeSection === id ? 'true' : undefined}
+              onClick={() => scrollToSection(id)}
+            />
           </span>
         ))}
       </nav>
@@ -230,62 +321,63 @@ export default function Home() {
               Thoughtful spaces, built around possibility
             </span>
 
-            <a className="scroll-cue" href="#about">
+            <Link className="scroll-cue" to="/#about">
               <span>Scroll to explore</span>
               <span className="scroll-cue-arrow" aria-hidden="true">
                 <DownArrowIcon />
               </span>
-            </a>
+            </Link>
 
             <span>01 / 07</span>
           </div>
         </section>
 
-        <section className="section" id="about" data-section="about">
-          <div className="container intro-grid">
-            <div className="intro-copy reveal">
-              <p className="eyebrow">01 — Our point of view</p>
+        <section className="section home-about" id="about" data-section="about">
+          <AboutStage embedded />
 
-              <h2 className="section-heading">
-                Land is in our DNA. Every parcel we take on carries that
-                forward.
-              </h2>
+          <div className="container intro-copy reveal about-story" style={{ maxWidth: 640 }}>
+            <p className="eyebrow">Our point of view</p>
+            <h2 className="section-heading">
+              Land is in our DNA. Every parcel we take on carries that forward.
+            </h2>
+            <div className="thin-rule" />
+            <p className="body-copy">
+              46Spaces exists to recognise potential in land and to bring the right
+              people together to move it forward. This is the home version of our
+              story — see the full page for founding notes, team bios and milestones
+              when they are ready.
+            </p>
+            <p className="body-copy" style={{ marginTop: 18 }}>
+              A small, focused team; a preference for considered sites over volume;
+              and a process that stays human from first call to follow-through.
+            </p>
+          </div>
 
-              <div className="thin-rule" />
-
-              <p className="body-copy">
-                We look beyond boundaries and square footage. Every place has
-                a story, a context and a future waiting to be considered. Our
-                work is about recognising that potential and bringing the
-                right people together to move it forward.
-              </p>
-
-              <div className="stats">
-                <div>
-                  <span className="stat-number">01</span>
-                  <span className="stat-label">Understand</span>
-                </div>
-                <div>
-                  <span className="stat-number">02</span>
-                  <span className="stat-label">Connect</span>
-                </div>
-                <div>
-                  <span className="stat-number">03</span>
-                  <span className="stat-label">Move forward</span>
-                </div>
+          <div className="section split-section about-values-wrap">
+            <div className="container">
+              <div className="split-heading reveal">
+                <p className="eyebrow">What we hold to</p>
+                <h2 className="section-heading">Three ideas that shape the work.</h2>
+              </div>
+              <div className="page-cards">
+                {ABOUT_VALUES.map((item) => (
+                  <article className="page-card reveal" key={item.number}>
+                    <span className="approach-number">{item.number}</span>
+                    <h3 className="form-title">{item.title}</h3>
+                    <p className="body-copy">{item.copy}</p>
+                  </article>
+                ))}
               </div>
             </div>
+          </div>
 
-            <figure className="media intro-image reveal">
-              <img
-                src="/assets/about.jpg"
-                alt="Contemporary architecture with natural light and warm neutral materials"
-                loading="lazy"
-              />
-              <figcaption className="image-caption">
-                A considered approach to every place
-              </figcaption>
-            </figure>
+          <div className="container notes-grid reveal-group">
+            {ABOUT_NOTES.map((note) => (
+              <article className="reveal" key={note.title}>
+                <p className="eyebrow">{note.title}</p>
+                <p className="body-copy">{note.copy}</p>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -324,51 +416,86 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="projects-grid">
-              {visibleProjects.map((project) => (
-                <Link
-                  className="project-card reveal"
-                  to={`/projects/${project.slug}`}
-                  key={project.slug}
-                >
-                  <div className="media project-image">
-                    <img
-                      src={project.image}
-                      alt={project.alt}
-                      loading="lazy"
-                    />
+            <div className="projects-slider-wrap reveal">
+              <div className="projects-slider-head">
+                <div className="projects-slider-controls" aria-label="Project carousel">
+                  <button
+                    type="button"
+                    className="slider-btn"
+                    onClick={goPrev}
+                    disabled={slideIndex <= 0}
+                    aria-label="Previous projects"
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    className="slider-btn"
+                    onClick={goNext}
+                    disabled={slideIndex >= maxSlide || !visibleProjects.length}
+                    aria-label="Next projects"
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+
+              <div
+                className="projects-slider-viewport"
+                ref={sliderRef}
+                aria-busy={projectsLoading}
+              >
+                {projectsLoading ? (
+                  <p className="projects-slider-status body-copy">Loading projects…</p>
+                ) : visibleProjects.length ? (
+                  <div
+                    className="projects-slider-track"
+                    style={{ '--slides-visible': slidesPerView }}
+                  >
+                    {visibleProjects.map((project) => (
+                      <Link
+                        className="project-card project-card--slide"
+                        to={`/projects/${project.slug}`}
+                        key={project.slug}
+                      >
+                        <div className="media project-image">
+                          <img
+                            src={project.image}
+                            alt={project.alt || project.title}
+                            loading="lazy"
+                          />
+                        </div>
+
+                        <div className="project-meta">
+                          <div>
+                            <h3 className="project-title">{project.title}</h3>
+                            <p className="project-location">{project.location}</p>
+                          </div>
+
+                          <span className="project-status">{project.label}</span>
+
+                          <span className="project-arrow" aria-hidden="true">
+                            <ArrowIcon />
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-
-                  <div className="project-meta">
-                    <div>
-                      <h3 className="project-title">
-                        {project.title}
-                      </h3>
-
-                      <p className="project-location">
-                        {project.location}
-                      </p>
-                    </div>
-
-                    <span className="project-status">
-                      {project.label}
-                    </span>
-
-                    <span className="project-arrow" aria-hidden="true">
-                      <ArrowIcon />
-                    </span>
-                  </div>
-                </Link>
-              ))}
+                ) : (
+                  <p className="projects-slider-status body-copy">
+                    No projects in this category yet. Try another filter or check back soon.
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="mt-10 reveal">
-              <a className="button" href="#contact">
+              <Link className="button" to="/#contact">
                 Discuss a project
                 <span className="button-arrow" aria-hidden="true">
                   <ArrowIcon />
                 </span>
-              </a>
+              </Link>
             </div>
           </div>
         </section>
@@ -665,12 +792,12 @@ export default function Home() {
                 next steps.
               </p>
 
-              <a className="button mt-8" href="#contact">
+              <Link className="button mt-8" to="/#contact">
                 Work with 46Spaces
                 <span className="button-arrow" aria-hidden="true">
                   <ArrowIcon />
                 </span>
-              </a>
+              </Link>
             </div>
 
             <div className="approach-list">

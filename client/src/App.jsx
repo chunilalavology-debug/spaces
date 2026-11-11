@@ -1,4 +1,4 @@
-
+import { useEffect, useState } from 'react'
 import Layout from './components/Layout.jsx'
 import { Router, useRouter } from './lib/router.jsx'
 
@@ -19,40 +19,65 @@ const ROUTES = {
   '/projects': Projects,
   '/opportunities': Opportunities,
   '/approach': Approach,
-  '/contact': Contact,
+  '/contact': Contact
 }
 
 function AppRoutes() {
   const { path } = useRouter()
+  const [maintenance, setMaintenance] = useState({
+    active: false,
+    message: ''
+  })
 
-  // Admin routes
-  if (path === '/admin' || path.startsWith('/admin/')) {
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.maintenanceMode) {
+          setMaintenance({
+            active: true,
+            message: data.maintenanceMessage || ''
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const isAdmin = path === '/admin' || path.startsWith('/admin/')
+
+  if (isAdmin) {
     return <Admin />
   }
 
-  // Individual blog detail page
   if (path.startsWith('/blog/')) {
     return (
-      <Layout>
+      <Layout
+        maintenanceMode={maintenance.active}
+        maintenanceMessage={maintenance.message}
+      >
         <Blog />
       </Layout>
     )
   }
 
-  // Individual project detail page
   if (path.startsWith('/projects/')) {
     return (
-      <Layout>
+      <Layout
+        maintenanceMode={maintenance.active}
+        maintenanceMessage={maintenance.message}
+      >
         <ProjectDetail />
       </Layout>
     )
   }
 
-  // Normal pages
   const Page = ROUTES[path] || NotFound
 
   return (
-    <Layout>
+    <Layout
+      maintenanceMode={maintenance.active}
+      maintenanceMessage={maintenance.message}
+    >
       <Page />
     </Layout>
   )

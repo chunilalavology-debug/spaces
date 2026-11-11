@@ -9,15 +9,20 @@ datasource db {
 }
 
 model Admin {
-  id        String   @id @default("admin")
-  username  String   @unique
-  name      String?
-  email     String?
-  avatar    String?
-  salt      String
-  hash      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String    @id @default("admin")
+  username             String    @unique
+  name                 String?
+  email                String?
+  phone                String?
+  additionalContact    String?   @db.Text
+  avatar               String?
+  salt                 String
+  hash                 String
+  sessionVersion       Int       @default(1)
+  resetTokenHash       String?
+  resetTokenExpiresAt  DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 model Project {
@@ -32,25 +37,31 @@ model Project {
   status      String   @default("draft")
   statusLabel String?
   featured    Boolean  @default(false)
+  sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([category])
 }
 
 model Blog {
-  id              String   @id @default(uuid())
-  title           String
-  slug            String   @unique
-  excerpt         String?  @db.Text
-  content         String   @db.Text
-  category        String   @default("Insights")
-  author          String   @default("46Spaces")
-  coverImage      String?
-  status          String   @default("draft")
-  seoTitle        String?
-  seoDescription  String?  @db.Text
-  publishedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String    @id @default(uuid())
+  title          String
+  slug           String    @unique
+  excerpt        String?   @db.Text
+  content        String    @db.Text
+  category       String    @default("Insights")
+  author         String    @default("46Spaces")
+  coverImage     String?
+  status         String    @default("draft")
+  seoTitle       String?
+  seoDescription String?   @db.Text
+  publishedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, publishedAt])
 }
 
 model Enquiry {
@@ -68,6 +79,9 @@ model Enquiry {
   fields      Json?
   formId      String?
   createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([formId])
 }
 
 model Menu {
@@ -87,25 +101,61 @@ model Form {
 }
 
 model SiteSetting {
-  id                      String   @id @default("main")
-  siteName                String   @default("46Spaces")
-  logoUrl                 String?
-  faviconUrl              String?
-  tagline                 String?
-  description             String?  @db.Text
-  contactEmail            String?
-  contactPhone            String?
-  address                 String?  @db.Text
-  instagram               String?
-  linkedin                String?
-  facebook                String?
-  blogSectionTitle        String?
-  blogSectionDescription  String?  @db.Text
-  postsPerPage            Int      @default(6)
-  showBlogSection         Boolean  @default(true)
-  seoTitle                String?
-  seoDescription          String?  @db.Text
-  seoKeywords             String?  @db.Text
-  maintenanceMode         Boolean  @default(false)
-  updatedAt               DateTime @updatedAt
+  id                     String   @id @default("main")
+  siteName               String   @default("46Spaces")
+  logoUrl                String?
+  faviconUrl             String?
+  tagline                String?
+  description            String?  @db.Text
+  contactEmail           String?
+  contactPhone           String?
+  address                String?  @db.Text
+  instagram              String?
+  linkedin               String?
+  facebook               String?
+  blogSectionTitle       String?
+  blogSectionDescription String?  @db.Text
+  postsPerPage           Int      @default(6)
+  showBlogSection        Boolean  @default(true)
+  seoTitle               String?
+  seoDescription         String?  @db.Text
+  seoKeywords            String?  @db.Text
+  maintenanceMode        Boolean  @default(false)
+  updatedAt              DateTime @updatedAt
+}
+
+model SmtpSetting {
+  id               String   @id @default("main")
+  host             String?
+  port             Int      @default(587)
+  username         String?
+  passwordEnc      String?
+  encryption       String   @default("tls")
+  fromEmail        String?
+  fromName         String?
+  replyTo          String?
+  notificationsEnabled Boolean @default(false)
+  updatedAt        DateTime @updatedAt
+}
+
+model EmailTemplate {
+  id        String   @id
+  name      String
+  subject   String
+  bodyHtml  String   @db.Text
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model MediaAsset {
+  id          String   @id @default(uuid())
+  filename    String
+  mimeType    String
+  size        Int
+  url         String
+  storage     String   @default("disk")
+  dataBase64  String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }
