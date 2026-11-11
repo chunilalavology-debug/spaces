@@ -351,7 +351,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="section split-section about-values-wrap">
+          <div className="split-section about-values-wrap">
             <div className="container">
               <div className="split-heading reveal">
                 <p className="eyebrow">What we hold to</p>
