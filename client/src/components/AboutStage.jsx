@@ -125,7 +125,7 @@ export default function AboutStage({ embedded = false }) {
   return (
     <Tag className={`about-visual${embedded ? ' about-visual--embed' : ''}`} ref={rootRef}>
       <div className="container about-visual-head">
-        <p className="eyebrow about-visual-kicker">About — 01</p>
+        <p className="eyebrow about-visual-kicker">About</p>
         <Heading className="section-heading about-visual-title">Land, seen as a living space.</Heading>
         <p className="body-copy about-visual-lede">
           A dummy 3D model of a considered home — the kind of place we look for in land. Move your pointer to tilt the model. Replace this render with a real project visual later.

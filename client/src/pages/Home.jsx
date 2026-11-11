@@ -387,7 +387,7 @@ export default function Home() {
           <div className="container">
             <div className="section-topline reveal">
               <div>
-                <p className="eyebrow">02 — Selected opportunities</p>
+                <p className="eyebrow">Selected opportunities</p>
                 <h2 className="section-heading">
                   Where things stand, right now.
                 </h2>
@@ -508,7 +508,7 @@ export default function Home() {
               <div className="container">
                 <div className="section-topline reveal">
                   <div>
-                    <p className="eyebrow">03 — Journal</p>
+                    <p className="eyebrow">Journal</p>
 
                     <h2 className="section-heading">
                       {siteSettings.blogSectionTitle ||
@@ -593,7 +593,7 @@ export default function Home() {
         >
           <div className="container">
             <div className="split-heading reveal">
-              <p className="eyebrow">04 — Open the conversation</p>
+              <p className="eyebrow">Open the conversation</p>
 
               <h2 className="section-heading">
                 Bring land, or bring buyers.
@@ -778,7 +778,7 @@ export default function Home() {
         >
           <div className="container approach-grid">
             <div className="approach-intro reveal">
-              <p className="eyebrow">05 — The way we work</p>
+              <p className="eyebrow">The way we work</p>
 
               <h2 className="section-heading">
                 Build spaces with us.
@@ -854,7 +854,7 @@ export default function Home() {
         >
           <div className="container contact-grid">
             <div className="reveal">
-              <p className="eyebrow">06 — Get in touch</p>
+              <p className="eyebrow">Get in touch</p>
 
               <h2 className="section-heading">
                 Every good thing starts somewhere.
