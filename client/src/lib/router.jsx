@@ -90,9 +90,15 @@ export function Router({ children }) {
   }
 
   function scrollToSection(id) {
-    const sectionId = id === 'home' ? '' : id
+    const sectionId = !id || id === 'home' ? '' : id
     const url = sectionId ? `/#${sectionId}` : '/'
     navigate(url)
+
+    if (!sectionId) {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      })
+    }
   }
 
   return (
