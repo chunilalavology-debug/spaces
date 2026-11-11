@@ -5,11 +5,30 @@ const FALLBACK_NAV = [
   { id: 'home', url: '/#home', label: 'Home' },
   { id: 'about', url: '/#about', label: 'About' },
   { id: 'projects', url: '/#projects', label: 'Projects' },
-  { id: 'journal', url: '/#blogs', label: 'Journal' },
   { id: 'opportunities', url: '/#opportunities', label: 'Opportunities' },
   { id: 'approach', url: '/#approach', label: 'Approach' },
   { id: 'contact', url: '/#contact', label: 'Contact' }
 ]
+
+function withoutJournal(items) {
+  if (!Array.isArray(items)) return []
+  return items
+    .filter((item) => {
+      const label = String(item.label || '').toLowerCase()
+      const url = String(item.url || item.to || '').toLowerCase()
+      const id = String(item.id || '').toLowerCase()
+      return !(
+        label === 'journal' ||
+        id === 'journal' ||
+        url === '/#blogs' ||
+        url.endsWith('#blogs')
+      )
+    })
+    .map((item) => ({
+      ...item,
+      children: withoutJournal(item.children)
+    }))
+}
 
 const SECTION_FROM_PATH = {
   '/': 'home',
@@ -80,8 +99,8 @@ export default function Layout({
     fetch('/api/menus')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.header?.length) setNavItems(data.header)
-        if (data?.footer?.length) setFooterItems(data.footer)
+        if (data?.header?.length) setNavItems(withoutJournal(data.header))
+        if (data?.footer?.length) setFooterItems(withoutJournal(data.footer))
       })
       .catch(() => {})
 

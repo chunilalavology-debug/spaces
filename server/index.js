@@ -790,7 +790,6 @@ const DEFAULT_MENUS = {
     { id: 'home', label: 'Home', url: '/#home' },
     { id: 'about', label: 'About', url: '/#about' },
     { id: 'projects', label: 'Projects', url: '/#projects' },
-    { id: 'journal', label: 'Journal', url: '/#blogs' },
     { id: 'opportunities', label: 'Opportunities', url: '/#opportunities' },
     { id: 'approach', label: 'Approach', url: '/#approach' },
     { id: 'contact', label: 'Contact', url: '/#contact' }
@@ -815,13 +814,27 @@ function landingMenuUrl(url) {
   return map[value] || value
 }
 
+function isJournalMenuItem(item) {
+  const label = String(item?.label || '').toLowerCase()
+  const url = String(item?.url || item?.to || '').toLowerCase()
+  const id = String(item?.id || '').toLowerCase()
+  return (
+    label === 'journal' ||
+    id === 'journal' ||
+    url === '/#blogs' ||
+    url.endsWith('#blogs')
+  )
+}
+
 function normalizeMenuItems(items) {
   if (!Array.isArray(items)) return []
-  return items.map((item) => ({
-    ...item,
-    url: landingMenuUrl(item.url || item.to || '/#home'),
-    children: normalizeMenuItems(item.children)
-  }))
+  return items
+    .filter((item) => !isJournalMenuItem(item))
+    .map((item) => ({
+      ...item,
+      url: landingMenuUrl(item.url || item.to || '/#home'),
+      children: normalizeMenuItems(item.children)
+    }))
 }
 
 async function getMenus() {

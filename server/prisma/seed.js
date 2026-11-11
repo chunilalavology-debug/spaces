@@ -66,7 +66,6 @@ async function main() {
         { id: 'home', label: 'Home', url: '/#home' },
         { id: 'about', label: 'About', url: '/#about' },
         { id: 'projects', label: 'Projects', url: '/#projects' },
-        { id: 'journal', label: 'Journal', url: '/#blogs' },
         { id: 'opportunities', label: 'Opportunities', url: '/#opportunities' },
         { id: 'approach', label: 'Approach', url: '/#approach' },
         { id: 'contact', label: 'Contact', url: '/#contact' }

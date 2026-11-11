@@ -34,7 +34,7 @@ const SECTION_LABELS = {
   home: 'Home',
   about: 'About',
   projects: 'Projects',
-  blogs: 'Journal',
+  blogs: 'Blogs',
   opportunities: 'Opportunities',
   approach: 'Approach',
   contact: 'Contact'
@@ -298,7 +298,7 @@ export default function Home() {
         ))}
       </nav>
 
-      <main>
+      <main className="home-page">
         <section className="hero" id="home" data-section="home">
           <p className="eyebrow hero-kicker hero-intro">
             Independent thinking. Grounded in land.
@@ -313,7 +313,7 @@ export default function Home() {
           </h1>
 
           <p className="hero-subtitle hero-intro">
-            Land. Ideas. Possibility.
+            Spaces, Redefined.
           </p>
 
           <div className="hero-bottom">
@@ -327,8 +327,6 @@ export default function Home() {
                 <DownArrowIcon />
               </span>
             </Link>
-
-            <span>01 / 07</span>
           </div>
         </section>
 
